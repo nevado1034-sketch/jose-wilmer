@@ -1,0 +1,6 @@
+{
+  "name": "LITIO ENERGY SERVICIO TECNICO",
+  "description": "Aplicación interactiva para seguimiento de servicio técnico de scooters, bicicletas y motos eléctricas con chat inteligente y contacto por WhatsApp.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
