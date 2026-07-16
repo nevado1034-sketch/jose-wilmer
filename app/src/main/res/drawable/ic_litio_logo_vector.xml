@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="100dp"
+    android:height="100dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+
+    <!-- 1. Battery Outline in Primary Brand Cyan -->
+    <path
+        android:pathData="M 18.1,22.0 L 82.1,22.0 L 77.5,35.0 L 91.5,35.0 L 84.5,55.0 L 70.5,55.0 L 66.0,68.0 L 2.0,68.0 Z"
+        android:strokeWidth="5.2"
+        android:strokeColor="#6BDADB"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round" />
+
+    <!-- 2. Clean gap under bolt (drawn in background color #0B1220 with thick stroke and fill) -->
+    <path
+        android:pathData="M 38.0,4.0 L 60.0,4.0 L 51.0,38.0 L 66.0,38.0 L 39.0,96.0 L 47.0,50.0 L 26.0,50.0 Z"
+        android:strokeWidth="11.2"
+        android:strokeColor="#0B1220"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round"
+        android:fillColor="#0B1220" />
+
+    <!-- 3. Filled Bolt in Primary Brand Cyan -->
+    <path
+        android:pathData="M 38.0,4.0 L 60.0,4.0 L 51.0,38.0 L 66.0,38.0 L 39.0,96.0 L 47.0,50.0 L 26.0,50.0 Z"
+        android:fillColor="#6BDADB" />
+</vector>

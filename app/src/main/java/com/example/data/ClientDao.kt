@@ -14,6 +14,9 @@ interface ClientDao {
     @Query("SELECT * FROM clients WHERE phone = :phone LIMIT 1")
     suspend fun getClientByPhone(phone: String): ClientEntity?
 
+    @Query("SELECT * FROM clients WHERE LOWER(dni) = LOWER(:dni) LIMIT 1")
+    suspend fun getClientByDni(dni: String): ClientEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertClient(client: ClientEntity): Long
 

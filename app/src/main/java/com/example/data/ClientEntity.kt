@@ -20,5 +20,6 @@ data class ClientEntity(
     val technicianNotes: String,
     val estimatedCost: Double,
     val estimatedCompletionDate: String,
+    val sede: String = "Litio Surco",
     val createdAt: Long = System.currentTimeMillis()
 )

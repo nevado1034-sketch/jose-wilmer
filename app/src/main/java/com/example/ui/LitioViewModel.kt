@@ -46,9 +46,11 @@ class LitioViewModel(application: Application) : AndroidViewModel(application) {
     var regVehicleModel by mutableStateOf("")
     var regVehicleSerial by mutableStateOf("")
     var regProblem by mutableStateOf("")
+    var regSede by mutableStateOf("Litio Surco") // "Litio Surco", "Litio San Borja", "Litio San Isidro", "Litio Lince"
     
     // Status tracking query state
     var lookupPhoneQuery by mutableStateOf("")
+    var lookupDniQuery by mutableStateOf("")
     var lookupError by mutableStateOf<String?>(null)
     
     private val prefs = application.getSharedPreferences("litio_settings", android.content.Context.MODE_PRIVATE)
@@ -57,7 +59,31 @@ class LitioViewModel(application: Application) : AndroidViewModel(application) {
     var whatsappNumber by mutableStateOf(prefs.getString("whatsapp_number", "+51975925094") ?: "+51975925094")
 
     // Google Sheets Webhook URL
-    var googleSheetsWebhookUrl by mutableStateOf(prefs.getString("google_sheets_url", "")?.ifEmpty { "https://script.google.com/macros/s/AKfycbzWYdRUsL6evWEocpaGAKr1NGWeDvABPK5K2jNZsZ16ZmIGV-D-njhitSLf6n0AAfaj-A/exec" } ?: "https://script.google.com/macros/s/AKfycbzWYdRUsL6evWEocpaGAKr1NGWeDvABPK5K2jNZsZ16ZmIGV-D-njhitSLf6n0AAfaj-A/exec")
+    var googleSheetsWebhookUrl by mutableStateOf(
+        prefs.getString("google_sheets_url", "")?.let { savedUrl ->
+            val oldUrl1 = "https://script.google.com/macros/s/AKfycbzWYdRUsL6evWEocpaGAKr1NGWeDvABPK5K2jNZsZ16ZmIGV-D-njhitSLf6n0AAfaj-A/exec"
+            val oldUrl2 = "https://script.google.com/macros/s/AKfycbwKqz9hasm9wHvNy6jDxB4yEqRiuf8-4ZlkmeZ0WU99PZDkpzdgmWOzV22Wjy-EmDXcNg/exec"
+            val oldUrl3 = "https://script.google.com/macros/s/AKfycbykiBraleD0Xm4nDdPRt0qgnZJm6zUhpK_8gPsfI1Urmwh9wOeo_FNFrVz9ucBMydAHmA/exec"
+            val oldUrl4 = "https://script.google.com/macros/s/AKfycbzLD8p9HMDEtclUT0W6rN631JY6PXY0L39xF4YJQ-xrsMWUuDzyb3gsodN6RWRMWDyf/exec"
+            val oldUrl5 = "https://script.google.com/macros/s/AKfycbzH5J4t_SzYcYv2qncLIHVh9oMGt6m0OBa1UPhzIRdH2ZGrZ77Ka2qDc4-0p_3UreZQ/exec"
+            val oldUrl6 = "https://script.google.com/macros/s/AKfycbzjAcrLiW5A7fDBT8tMPoHKSUbuNIhltZGlGlohbP4Ra4IWhUMz44OTJ9fIVu2TbHOkjA/exec"
+            val oldUrl7 = "https://script.google.com/macros/s/AKfycbyHolIhIsJjsW-e3nwUnL134kO61rDxfDaA87X37Z5CBVRTKlq_qcS96oqIx2AVBAMqzQ/exec"
+            val oldUrl8 = "https://script.google.com/macros/s/AKfycbxpJRU9okNyJTgvfrDncZ6SoEh8EZLcKFnthVjaqi1ng9NvVQBPzGVGyOZfdX-dhCqANA/exec"
+            val oldUrl9 = "https://script.google.com/macros/s/AKfycbwFTTzMPPJ4ZkNFDDMRMmtrRWKY1nrzDl3_k7HQP0sLFetz2LJHnti3XRvNjaKlNh1Dhw/exec"
+            val oldUrl10 = "https://script.google.com/macros/s/AKfycbxtrvSSLL5JvMqRha8HgR9Vi0DrZKjBv_y61njTdN0RVgRF8p9wiSKsrwnYxNvOgvLrkw/exec"
+            val oldUrl11 = "https://script.google.com/macros/s/AKfycbzaHzMBGXMFtpkdp6iz6dMu5ErwC4y9EvlNhrUAMRy_td48QzqmrNmXyWg6fZSCyK1Gqg/exec"
+            val oldUrl12 = "https://script.google.com/macros/s/AKfycbyq5e1ghRfY4zpLKUdi2Qm0DekJc5Sx6G1caNJ55bylzzjKfbqKOn1Mw60zewMEYLaxFQ/exec"
+            val oldUrl13 = "https://script.google.com/macros/s/AKfycbzH9cteSYnMUaxY0Gw-6XxkCc91-Ep088TUWF8W0yzojCWBd2JQDeh8q34fW_aSbT-L_A/exec"
+            val oldUrl14 = "https://script.google.com/macros/s/AKfycbyu-WFG20qmIfI1dxp4fqbKLSXsoAZahzRLISdJggXFJ9_kB0HaUqe7Pfx4W79UVQCw-A/exec"
+            val targetUrl = "https://script.google.com/macros/s/AKfycbxNwzO7bX0EyZdUspdIM-9Sx-TjY2LKySZCbGvSl42rqQ5Gtq6h0gn6D6oFVMfghunaDQ/exec"
+            if (savedUrl.isBlank() || savedUrl == oldUrl1 || savedUrl == oldUrl2 || savedUrl == oldUrl3 || savedUrl == oldUrl4 || savedUrl == oldUrl5 || savedUrl == oldUrl6 || savedUrl == oldUrl7 || savedUrl == oldUrl8 || savedUrl == oldUrl9 || savedUrl == oldUrl10 || savedUrl == oldUrl11 || savedUrl == oldUrl12 || savedUrl == oldUrl13 || savedUrl == oldUrl14) {
+                prefs.edit().putString("google_sheets_url", targetUrl).apply()
+                targetUrl
+            } else {
+                savedUrl
+            }
+        } ?: "https://script.google.com/macros/s/AKfycbxNwzO7bX0EyZdUspdIM-9Sx-TjY2LKySZCbGvSl42rqQ5Gtq6h0gn6D6oFVMfghunaDQ/exec"
+    )
 
     var isSyncingSheets by mutableStateOf(false)
     var syncStatusMessage by mutableStateOf<String?>(null)
@@ -70,6 +96,21 @@ class LitioViewModel(application: Application) : AndroidViewModel(application) {
     fun updateGoogleSheetsWebhookUrl(url: String) {
         googleSheetsWebhookUrl = url
         prefs.edit().putString("google_sheets_url", url).apply()
+        
+        val trimmed = url.trim()
+        if (trimmed.contains("docs.google.com/spreadsheets")) {
+            syncStatusMessage = "⚠️ Has ingresado el enlace del documento. Debes crear un Apps Script en 'Extensiones' > 'Apps Script' y pegar su URL de Web App (comienza con script.google.com)."
+        } else if (trimmed.isNotBlank() && !trimmed.contains("script.google.com/macros")) {
+            syncStatusMessage = "⚠️ Asegúrate de pegar la URL del Web App de Apps Script (debe comenzar con script.google.com)."
+        } else {
+            syncStatusMessage = null
+        }
+    }
+
+    fun resetToDefaultGoogleSheetsUrl() {
+        val targetUrl = "https://script.google.com/macros/s/AKfycbxNwzO7bX0EyZdUspdIM-9Sx-TjY2LKySZCbGvSl42rqQ5Gtq6h0gn6D6oFVMfghunaDQ/exec"
+        updateGoogleSheetsWebhookUrl(targetUrl)
+        syncStatusMessage = "✅ URL restablecida a la de Google Sheets por defecto."
     }
     
     // Admin screen states
@@ -192,7 +233,7 @@ class LitioViewModel(application: Application) : AndroidViewModel(application) {
         chatMessages.clear()
         chatMessages.add(
             ChatMessage(
-                text = "¡Hola! Bienvenido a **LITIO ENERGY SERVICIO TECNICO** ⚡\n\nSoy **LitioBot**, tu experto en micromovilidad eléctrica. ¿Tienes alguna pregunta sobre tu batería, presión de neumáticos o pastillas de freno? Cualquier problema solo consúltame para tu ayuda.",
+                text = "¡Hola! Soy **LitioBot**, tu experto en micromovilidad eléctrica. ¿Tienes alguna pregunta sobre tu vehículo eléctrico? Cualquier problema solo consúltame para ayudarte. ⚡",
                 isUser = false
             )
         )
@@ -213,27 +254,41 @@ class LitioViewModel(application: Application) : AndroidViewModel(application) {
                 vehicleType = regVehicleType,
                 vehicleBrand = regVehicleBrand,
                 vehicleModel = regVehicleModel,
-                vehicleSerialNumber = regVehicleSerial.ifBlank { "S/N-PENDIENTE" },
+                vehicleSerialNumber = regVehicleSerial.ifBlank { "Otros" },
                 problemDescription = regProblem.ifBlank { "Revisión general preventiva" },
                 status = "Recibido",
                 progress = 10,
                 technicianNotes = "Vehículo registrado en taller. Pendiente de ingreso a bahía de diagnóstico.",
-                estimatedCost = 20.00,
-                estimatedCompletionDate = "Pendiente de diagnóstico"
+                estimatedCost = 0.00,
+                estimatedCompletionDate = "Pendiente de diagnóstico",
+                sede = regSede
             )
-            repository.insertClient(newClient)
-            trackedClient = newClient
+            val generatedId = repository.insertClient(newClient)
+            val clientWithId = newClient.copy(id = generatedId.toInt())
+            trackedClient = clientWithId
             isClientRegistered = true
             
-            syncToGoogleSheets(newClient)
+            syncToGoogleSheets(clientWithId)
             
             // Auto add note in chat
             chatMessages.add(
                 ChatMessage(
-                    text = "¡Excelente, ${newClient.name}! He registrado tu **${newClient.vehicleType} ${newClient.vehicleBrand} ${newClient.vehicleModel}** con éxito en nuestro sistema de Litio Energy. Su estado actual es **${newClient.status}** (10%).\n\n¿Quieres saber qué revisaremos en el diagnóstico inicial o necesitas consultar algo más?",
+                    text = "¡Excelente, ${clientWithId.name}! He registrado tu **${clientWithId.vehicleType} ${clientWithId.vehicleBrand} ${clientWithId.vehicleModel}** con éxito en la sede **${clientWithId.sede}** de Litio Energy. Su estado actual es **${clientWithId.status}** (10%).\n\n¿Quieres saber qué revisaremos en el diagnóstico inicial o necesitas consultar algo más?",
                     isUser = false
                 )
             )
+
+            // Clear form inputs automatically
+            regName = ""
+            regPhone = ""
+            regDni = ""
+            regEmail = ""
+            regVehicleType = "Scooter"
+            regVehicleBrand = ""
+            regVehicleModel = ""
+            regVehicleSerial = ""
+            regProblem = ""
+            regSede = "Litio Surco"
         }
     }
 
@@ -263,6 +318,33 @@ class LitioViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // Client lookup by DNI or Carnet de Extranjería (C.E.)
+    fun lookupClientByDni() {
+        val trimmedQuery = lookupDniQuery.trim()
+        if (trimmedQuery.isBlank()) {
+            lookupError = "Por favor ingresa un número de DNI/C.E."
+            return
+        }
+        viewModelScope.launch {
+            val client = repository.getClientByDni(trimmedQuery)
+            if (client != null) {
+                trackedClient = client
+                isClientRegistered = true
+                lookupError = null
+                
+                // Greeting updated in chat
+                chatMessages.add(
+                    ChatMessage(
+                        text = "¡Hola de nuevo, ${client.name}! He cargado los datos de tu servicio técnico. Tu **${client.vehicleType} ${client.vehicleBrand}** está en estado: **${client.status}** (${client.progress}% de avance).\n\nPregúntame lo que desees sobre la reparación o haz clic en el botón de WhatsApp.",
+                        isUser = false
+                    )
+                )
+            } else {
+                lookupError = "No se encontró ningún vehículo registrado con ese DNI/C.E. ($trimmedQuery)"
+            }
+        }
+    }
+
     // Save customized client updates (Admin)
     fun saveClientChanges(client: ClientEntity) {
         viewModelScope.launch {
@@ -288,8 +370,9 @@ class LitioViewModel(application: Application) : AndroidViewModel(application) {
     // Add new client from Admin Dialog
     fun addNewClient(client: ClientEntity) {
         viewModelScope.launch {
-            repository.insertClient(client)
-            syncToGoogleSheets(client)
+            val generatedId = repository.insertClient(client)
+            val clientWithId = client.copy(id = generatedId.toInt())
+            syncToGoogleSheets(clientWithId)
         }
     }
 
@@ -337,6 +420,7 @@ class LitioViewModel(application: Application) : AndroidViewModel(application) {
             👤 *Cliente:* ${client.name}
             📞 *Celular:* ${client.phone}
             📧 *Email:* ${client.email}
+            🏢 *Sede de Ingreso:* ${client.sede}
             
             🏍️ *Vehículo:* ${client.vehicleType}
             🏷️ *Marca/Modelo:* ${client.vehicleBrand} ${client.vehicleModel}
@@ -353,7 +437,14 @@ class LitioViewModel(application: Application) : AndroidViewModel(application) {
 
         return try {
             val encodedMessage = URLEncoder.encode(message, "UTF-8")
-            val cleanPhone = whatsappNumber.replace("+", "").replace(" ", "")
+            val targetPhone = when (client.sede.lowercase().trim()) {
+                "litio surco" -> "975925094"
+                "litio san borja" -> "904626501"
+                "litio san isidro" -> "913218665"
+                "litio lince" -> "987966957"
+                else -> whatsappNumber.replace("+", "").replace(" ", "")
+            }
+            val cleanPhone = if (targetPhone.startsWith("51")) targetPhone else "51$targetPhone"
             "https://api.whatsapp.com/send?phone=$cleanPhone&text=$encodedMessage"
         } catch (e: Exception) {
             ""
@@ -361,10 +452,11 @@ class LitioViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun syncToGoogleSheets(client: ClientEntity) {
-        val url = googleSheetsWebhookUrl
-        if (url.isBlank()) {
-            syncStatusMessage = "URL de Sheets no configurada. Edítala en el panel de administración."
-            return
+        var url = googleSheetsWebhookUrl.trim()
+        if (url.isBlank() || !url.startsWith("http") || url.contains("docs.google.com")) {
+            val targetUrl = "https://script.google.com/macros/s/AKfycbxNwzO7bX0EyZdUspdIM-9Sx-TjY2LKySZCbGvSl42rqQ5Gtq6h0gn6D6oFVMfghunaDQ/exec"
+            updateGoogleSheetsWebhookUrl(targetUrl)
+            url = targetUrl
         }
         viewModelScope.launch {
             isSyncingSheets = true
@@ -382,9 +474,43 @@ class LitioViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun syncAllToGoogleSheets(clients: List<ClientEntity>) {
+        var url = googleSheetsWebhookUrl.trim()
+        if (url.isBlank() || !url.startsWith("http") || url.contains("docs.google.com")) {
+            val targetUrl = "https://script.google.com/macros/s/AKfycbxNwzO7bX0EyZdUspdIM-9Sx-TjY2LKySZCbGvSl42rqQ5Gtq6h0gn6D6oFVMfghunaDQ/exec"
+            updateGoogleSheetsWebhookUrl(targetUrl)
+            url = targetUrl
+        }
+        viewModelScope.launch {
+            isSyncingSheets = true
+            syncStatusMessage = "Sincronizando ${clients.size} clientes..."
+            var successCount = 0
+            var failureCount = 0
+            var lastError = ""
+            for (client in clients) {
+                val result = GoogleSheetsService.syncClientToSheets(url, client)
+                result.fold(
+                    onSuccess = { successCount++ },
+                    onFailure = { err ->
+                        failureCount++
+                        lastError = err.message ?: "Error"
+                    }
+                )
+            }
+            isSyncingSheets = false
+            syncStatusMessage = if (failureCount == 0) {
+                "✅ Sincronizados $successCount clientes con éxito."
+            } else {
+                "⚠️ Éxito: $successCount, Error: $failureCount. Último: $lastError"
+            }
+        }
+    }
+
     fun logoutClient() {
         trackedClient = null
         isClientRegistered = false
+        lookupDniQuery = ""
+        lookupPhoneQuery = ""
         addSystemGreeting()
     }
 }

@@ -10,6 +10,15 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -54,6 +63,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Help
 import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.DirectionsCar
@@ -77,6 +87,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.TwoWheeler
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -136,6 +147,11 @@ import com.example.ui.ChatMessage
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.Path
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.graphics.PathEffect
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -181,11 +197,116 @@ fun AppNavigation(
     viewModel: LitioViewModel,
     onOpenUrl: (String) -> Unit
 ) {
+    var showPasswordDialog by remember { mutableStateOf(false) }
+    var passwordInput by remember { mutableStateOf("") }
+    var isPasswordIncorrect by remember { mutableStateOf(false) }
+
+    if (showPasswordDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showPasswordDialog = false
+                passwordInput = ""
+                isPasswordIncorrect = false
+            },
+            title = {
+                Text(
+                    text = "Acceso Técnico/Admin ⚡",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Ingresa la clave de administrador para acceder a las herramientas de control y sincronización:",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    OutlinedTextField(
+                        value = passwordInput,
+                        onValueChange = { 
+                            passwordInput = it
+                            isPasswordIncorrect = false
+                        },
+                        label = { Text("Contraseña / PIN") },
+                        singleLine = true,
+                        isError = isPasswordIncorrect,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Done
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                if (passwordInput == "1034" || passwordInput.lowercase() == "litio") {
+                                    viewModel.isAdminMode = true
+                                    showPasswordDialog = false
+                                    passwordInput = ""
+                                    isPasswordIncorrect = false
+                                } else {
+                                    isPasswordIncorrect = true
+                                }
+                            }
+                        ),
+                        supportingText = {
+                            if (isPasswordIncorrect) {
+                                Text(
+                                    text = "Clave incorrecta. Inténtalo de nuevo.",
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (passwordInput == "1034" || passwordInput.lowercase() == "litio") {
+                            viewModel.isAdminMode = true
+                            showPasswordDialog = false
+                            passwordInput = ""
+                            isPasswordIncorrect = false
+                        } else {
+                            isPasswordIncorrect = true
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = Color.Black
+                    )
+                ) {
+                    Text("Ingresar", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showPasswordDialog = false
+                        passwordInput = ""
+                        isPasswordIncorrect = false
+                    }
+                ) {
+                    Text("Cancelar", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        )
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         // App Header (Shared Title & Toggle)
         AppHeader(
             isAdminMode = viewModel.isAdminMode,
-            onToggleMode = { viewModel.isAdminMode = !viewModel.isAdminMode }
+            onToggleMode = {
+                if (viewModel.isAdminMode) {
+                    viewModel.isAdminMode = false
+                } else {
+                    showPasswordDialog = true
+                }
+            }
         )
 
         // Switch Screens based on Mode & Registration state
@@ -209,53 +330,96 @@ fun LitioBrandMark(
     modifier: Modifier = Modifier,
     color: Color = MaterialTheme.colorScheme.primary
 ) {
-    Canvas(modifier = modifier) {
+    Canvas(
+        modifier = modifier
+            .graphicsLayer(alpha = 0.99f) // Required for BlendMode.Clear to work on an offscreen buffer
+    ) {
         val width = size.width
         val height = size.height
+        val cy = height * 0.45f
         
-        val strokeWidth = 2.dp.toPx()
-        val path = Path().apply {
-            val dx = width * 0.12f
-            
-            // Bottom left of battery
-            moveTo(width * 0.15f, height * 0.85f)
-            // Bottom right of battery
-            lineTo(width * 0.70f, height * 0.85f)
-            // Top right of battery
-            lineTo(width * 0.70f + dx, height * 0.25f)
-            // Cap right
-            lineTo(width * 0.55f + dx, height * 0.25f)
-            // Cap top right
-            lineTo(width * 0.55f + dx, height * 0.12f)
-            // Cap top left
-            lineTo(width * 0.35f + dx, height * 0.12f)
-            // Cap left
-            lineTo(width * 0.35f + dx, height * 0.25f)
-            // Top left of battery
-            lineTo(width * 0.15f + dx, height * 0.25f)
+        // Let's draw the outline and bolt relative to a proportional scale
+        val strokeWidth = width * 0.052f
+        val gapClearWidth = strokeWidth + width * 0.06f
+        
+        // Skew slant matching the reference image's italics angle (more aggressive slant)
+        val skew = 0.35f
+        fun getSlant(y: Float): Float = (cy - y) * skew
+        
+        // Proportions for the slanted battery shell - wider and shorter to match the real logo aspect ratio
+        val yTop = height * 0.22f
+        val yBottom = height * 0.68f
+        val xLeft = width * 0.10f
+        val xRight = width * 0.74f
+        
+        // Proportions for the right terminal cap
+        val yCapTop = height * 0.35f
+        val yCapBottom = height * 0.55f
+        val xCapRight = width * 0.88f
+        
+        val batteryPath = Path().apply {
+            moveTo(xLeft + getSlant(yTop), yTop)
+            lineTo(xRight + getSlant(yTop), yTop)
+            lineTo(xRight + getSlant(yCapTop), yCapTop)
+            lineTo(xCapRight + getSlant(yCapTop), yCapTop)
+            lineTo(xCapRight + getSlant(yCapBottom), yCapBottom)
+            lineTo(xRight + getSlant(yCapBottom), yCapBottom)
+            lineTo(xRight + getSlant(yBottom), yBottom)
+            lineTo(xLeft + getSlant(yBottom), yBottom)
             close()
         }
+        
+        val boltPath = Path().apply {
+            // Perfect nested lightning bolt matching the provided image precisely
+            moveTo(width * 0.38f, height * 0.04f)
+            lineTo(width * 0.60f, height * 0.04f)
+            lineTo(width * 0.51f, height * 0.38f)
+            lineTo(width * 0.66f, height * 0.38f)
+            lineTo(width * 0.39f, height * 0.96f)
+            lineTo(width * 0.47f, height * 0.50f)
+            lineTo(width * 0.26f, height * 0.50f)
+            close()
+        }
+        
+        // 1. Draw battery outline with rounded corners
         drawPath(
-            path = path,
+            path = batteryPath,
             color = color,
-            style = Stroke(width = strokeWidth)
+            style = Stroke(
+                width = strokeWidth,
+                miter = 4f,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round,
+                pathEffect = PathEffect.cornerPathEffect(width * 0.065f)
+            )
         )
         
-        // Lightning bolt inside, beautifully intersecting
-        val boltPath = Path().apply {
-            val dx = width * 0.12f
-            moveTo(width * 0.46f + dx, height * 0.32f)
-            lineTo(width * 0.28f + dx, height * 0.58f)
-            lineTo(width * 0.44f + dx, height * 0.58f)
-            lineTo(width * 0.38f + dx, height * 0.78f)
-            lineTo(width * 0.58f + dx, height * 0.48f)
-            lineTo(width * 0.44f + dx, height * 0.48f)
-            close()
-        }
+        // 2. Clear battery outline under the bolt with a custom gap
+        drawPath(
+            path = boltPath,
+            color = Color.Transparent,
+            style = Stroke(
+                width = gapClearWidth,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round,
+                pathEffect = PathEffect.cornerPathEffect(width * 0.02f)
+            ),
+            blendMode = BlendMode.Clear
+        )
+        
+        // 3. Clear battery outline under the body of the bolt
+        drawPath(
+            path = boltPath,
+            color = Color.Transparent,
+            style = Fill,
+            blendMode = BlendMode.Clear
+        )
+        
+        // 4. Draw filled bolt in the brand's primary color with slightly softened corners
         drawPath(
             path = boltPath,
             color = color,
-            style = Stroke(width = strokeWidth)
+            style = Fill
         )
     }
 }
@@ -264,7 +428,7 @@ fun LitioBrandMark(
 fun LitioBrandLogo(
     modifier: Modifier = Modifier,
     primaryColor: Color = MaterialTheme.colorScheme.primary,
-    subColor: Color = MaterialTheme.colorScheme.onSurface,
+    subColor: Color = MaterialTheme.colorScheme.primary,
     showSlogan: Boolean = false,
     fontSize: Float = 20f
 ) {
@@ -272,59 +436,222 @@ fun LitioBrandLogo(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically
     ) {
+        val markSize = (fontSize * 2.3f).dp
         LitioBrandMark(
-            modifier = Modifier.size((fontSize * 1.6f).dp),
+            modifier = Modifier.size(markSize),
             color = primaryColor
         )
         
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width((fontSize * 0.45f).dp))
         
         Column {
-            Text(
-                text = "litio",
-                fontSize = fontSize.sp,
-                fontWeight = FontWeight.Black,
-                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                color = primaryColor,
-                letterSpacing = (-0.5).sp,
-                lineHeight = fontSize.sp
-            )
+            val wordmarkHeight = (fontSize * 0.95f).dp
+            val wordmarkWidth = (fontSize * 2.7f).dp
+            
+            Canvas(
+                modifier = Modifier
+                    .width(wordmarkWidth)
+                    .height(wordmarkHeight)
+                    .graphicsLayer(alpha = 0.99f)
+            ) {
+                val w = size.width
+                val H = size.height
+                val s = 0.38f // Match the sporty italic slant of the official logo
+                val yBaseline = H * 0.90f
+                val yTopAscender = H * 0.10f
+                val yDotBottom = H * 0.28f
+                val yXHeight = H * 0.54f
+                
+                // Calculate precise available width factoring in slant-induced horizontal shift
+                val Shift = (yBaseline - yTopAscender) * s
+                val padding = w * 0.03f
+                val W_base = w - Shift - 2 * padding
+                
+                // Divide base width into exactly 8.0 units of the design grid
+                val T = W_base / 8.0f
+                val xStart = padding
+                
+                val S_w = T * 1.0f    // Stem width (consistent across all letters)
+                val G = T * 0.35f      // Standard gap between separate letters
+                val G_t = T * 0.50f    // Inner gap for 't-i2' connection block
+                val G_o = T * 0.45f    // Inner horizontal cutout of 'o'
+                
+                fun slantedX(x: Float, y: Float): Float = x + (yBaseline - y) * s
+                
+                // Base-level start positions
+                val x_l = xStart
+                val x_i1 = x_l + S_w + G
+                val x_t = x_i1 + S_w + G
+                val x_i2 = x_t + S_w + G_t
+                val x_o_l = x_i2 + S_w + G
+                val x_o_r = x_o_l + S_w + G_o
+                
+                // 1. l - Solid slanted bar from baseline to top ascender
+                val pathL = Path().apply {
+                    moveTo(slantedX(x_l, yTopAscender), yTopAscender)
+                    lineTo(slantedX(x_l + S_w, yTopAscender), yTopAscender)
+                    lineTo(slantedX(x_l + S_w, yBaseline), yBaseline)
+                    lineTo(slantedX(x_l, yBaseline), yBaseline)
+                    close()
+                }
+                drawPath(path = pathL, color = primaryColor, style = Fill)
+                
+                // 2. i (first) - stem
+                val pathI1Stem = Path().apply {
+                    moveTo(slantedX(x_i1, yXHeight), yXHeight)
+                    lineTo(slantedX(x_i1 + S_w, yXHeight), yXHeight)
+                    lineTo(slantedX(x_i1 + S_w, yBaseline), yBaseline)
+                    lineTo(slantedX(x_i1, yBaseline), yBaseline)
+                    close()
+                }
+                drawPath(path = pathI1Stem, color = primaryColor, style = Fill)
+                
+                // 2. i (first) - separate dot
+                val pathI1Dot = Path().apply {
+                    moveTo(slantedX(x_i1, yTopAscender), yTopAscender)
+                    lineTo(slantedX(x_i1 + S_w, yTopAscender), yTopAscender)
+                    lineTo(slantedX(x_i1 + S_w, yDotBottom), yDotBottom)
+                    lineTo(slantedX(x_i1, yDotBottom), yDotBottom)
+                    close()
+                }
+                drawPath(path = pathI1Dot, color = primaryColor, style = Fill)
+                
+                // 3. t & i (second) - stems drawn as a solid block first
+                val pathTI2Block = Path().apply {
+                    moveTo(slantedX(x_t, yXHeight), yXHeight)
+                    lineTo(slantedX(x_i2 + S_w, yXHeight), yXHeight)
+                    lineTo(slantedX(x_i2 + S_w, yBaseline), yBaseline)
+                    lineTo(slantedX(x_t, yBaseline), yBaseline)
+                    close()
+                }
+                drawPath(path = pathTI2Block, color = primaryColor, style = Fill)
+                
+                // 3. Clear the cutout under the 't-i2' bridge with beautiful rounded top corners
+                val bridgeThickness = S_w * 0.70f
+                val yBridgeBottom = yXHeight + bridgeThickness
+                val r = T * 0.20f // curve radius
+                val pathCutout = Path().apply {
+                    moveTo(slantedX(x_i2, yBaseline), yBaseline)
+                    lineTo(slantedX(x_i2, yBridgeBottom + r), yBridgeBottom + r)
+                    quadraticTo(
+                        slantedX(x_i2, yBridgeBottom), yBridgeBottom,
+                        slantedX(x_i2 - r, yBridgeBottom), yBridgeBottom
+                    )
+                    lineTo(slantedX(x_t + S_w + r, yBridgeBottom), yBridgeBottom)
+                    quadraticTo(
+                        slantedX(x_t + S_w, yBridgeBottom), yBridgeBottom,
+                        slantedX(x_t + S_w, yBridgeBottom + r), yBridgeBottom + r
+                    )
+                    lineTo(slantedX(x_t + S_w, yBaseline), yBaseline)
+                    close()
+                }
+                drawPath(
+                    path = pathCutout,
+                    color = Color.Transparent,
+                    style = Fill,
+                    blendMode = BlendMode.Clear
+                )
+                
+                // 4. o - Draw outer solid body shape
+                val pathOSolid = Path().apply {
+                    moveTo(slantedX(x_o_l, yBaseline), yBaseline)
+                    lineTo(slantedX(x_o_l, yXHeight), yXHeight)
+                    lineTo(slantedX(x_o_l + S_w, yXHeight), yXHeight)
+                    lineTo(slantedX(x_o_r, yXHeight), yXHeight)
+                    lineTo(slantedX(x_o_r, yTopAscender), yTopAscender)
+                    lineTo(slantedX(x_o_r + S_w, yTopAscender), yTopAscender)
+                    lineTo(slantedX(x_o_r + S_w, yBaseline), yBaseline)
+                    close()
+                }
+                drawPath(path = pathOSolid, color = primaryColor, style = Fill)
+                
+                // 5. top bar - Draw the top ligature bar starting above second i and covering o
+                val pathTopBar = Path().apply {
+                    moveTo(slantedX(x_i2, yTopAscender), yTopAscender)
+                    lineTo(slantedX(x_o_r + S_w, yTopAscender), yTopAscender)
+                    lineTo(slantedX(x_o_r + S_w, yDotBottom), yDotBottom)
+                    lineTo(slantedX(x_i2, yDotBottom), yDotBottom)
+                    close()
+                }
+                drawPath(path = pathTopBar, color = primaryColor, style = Fill)
+                
+                // 6. Clear the horizontal channel above the second i stem that flows into o
+                val pathChannel = Path().apply {
+                    moveTo(slantedX(x_i2, yDotBottom), yDotBottom)
+                    lineTo(slantedX(x_o_r, yDotBottom), yDotBottom)
+                    lineTo(slantedX(x_o_r, yXHeight), yXHeight)
+                    lineTo(slantedX(x_i2, yXHeight), yXHeight)
+                    close()
+                }
+                drawPath(
+                    path = pathChannel,
+                    color = Color.Transparent,
+                    style = Fill,
+                    blendMode = BlendMode.Clear
+                )
+                
+                // 7. Clear the lower inner cutout of o with elegant rounded bottom corners
+                val yOInnerBottom = yBaseline - S_w * 0.70f
+                val r_o = T * 0.15f
+                val pathOInnerRounded = Path().apply {
+                    moveTo(slantedX(x_o_l + S_w, yXHeight), yXHeight)
+                    lineTo(slantedX(x_o_r, yXHeight), yXHeight)
+                    lineTo(slantedX(x_o_r, yOInnerBottom - r_o), yOInnerBottom - r_o)
+                    quadraticTo(
+                        slantedX(x_o_r, yOInnerBottom), yOInnerBottom,
+                        slantedX(x_o_r - r_o, yOInnerBottom), yOInnerBottom
+                    )
+                    lineTo(slantedX(x_o_l + S_w + r_o, yOInnerBottom), yOInnerBottom)
+                    quadraticTo(
+                        slantedX(x_o_l + S_w, yOInnerBottom), yOInnerBottom,
+                        slantedX(x_o_l + S_w, yOInnerBottom - r_o), yOInnerBottom - r_o
+                    )
+                    close()
+                }
+                drawPath(
+                    path = pathOInnerRounded,
+                    color = Color.Transparent,
+                    style = Fill,
+                    blendMode = BlendMode.Clear
+                )
+            }
+            
+            Spacer(modifier = Modifier.height((fontSize * 0.05f).dp))
+            
             Text(
                 text = "E N E R G Y",
-                fontSize = (fontSize * 0.52f).sp,
-                fontWeight = FontWeight.Bold,
-                color = subColor.copy(alpha = 0.9f),
-                letterSpacing = 1.2.sp,
-                lineHeight = (fontSize * 0.52f).sp,
-                modifier = Modifier.padding(start = 1.dp)
+                fontSize = (fontSize * 0.38f).sp,
+                fontWeight = FontWeight.SemiBold,
+                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                color = subColor,
+                letterSpacing = (fontSize * 0.16f).sp,
+                modifier = Modifier.padding(start = (fontSize * 0.08f).dp)
             )
         }
         
         if (showSlogan) {
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(16.dp))
             Box(
                 modifier = Modifier
                     .width(1.dp)
-                    .height(28.dp)
-                    .background(subColor.copy(alpha = 0.2f))
+                    .height(32.dp)
+                    .background(primaryColor.copy(alpha = 0.3f))
             )
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(16.dp))
             Column {
                 Text(
                     text = "MOVIENDO EL FUTURO",
-                    fontSize = (fontSize * 0.52f).sp,
+                    fontSize = (fontSize * 0.45f).sp,
                     fontWeight = FontWeight.Black,
                     color = MaterialTheme.colorScheme.secondary,
-                    letterSpacing = 0.5.sp,
-                    lineHeight = (fontSize * 0.52f).sp
+                    letterSpacing = 0.5.sp
                 )
                 Text(
                     text = "SERVICIO TECNICO",
-                    fontSize = (fontSize * 0.40f).sp,
+                    fontSize = (fontSize * 0.35f).sp,
                     fontWeight = FontWeight.Bold,
-                    color = subColor.copy(alpha = 0.6f),
-                    letterSpacing = 0.5.sp,
-                    lineHeight = (fontSize * 0.40f).sp
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    letterSpacing = 0.5.sp
                 )
             }
         }
@@ -560,20 +887,48 @@ fun ClientWelcomeScreen(viewModel: LitioViewModel) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // Infinite floating/bobbing and wobble animation for LitioBot mascot
+                            val infiniteTransition = rememberInfiniteTransition(label = "bot_header_anim")
+                            val floatAnim by infiniteTransition.animateFloat(
+                                initialValue = -3f,
+                                targetValue = 3f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(durationMillis = 1400, easing = FastOutSlowInEasing),
+                                    repeatMode = RepeatMode.Reverse
+                                ),
+                                label = "float"
+                            )
+                            val rotateAnim by infiniteTransition.animateFloat(
+                                initialValue = -6f,
+                                targetValue = 6f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(durationMillis = 1000, easing = FastOutSlowInEasing),
+                                    repeatMode = RepeatMode.Reverse
+                                ),
+                                label = "rotate"
+                            )
+
                             Box(
                                 modifier = Modifier
-                                    .size(36.dp)
-                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), CircleShape),
+                                    .size(48.dp)
+                                    .graphicsLayer(
+                                        translationY = floatAnim,
+                                        rotationZ = rotateAnim
+                                    )
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape)
+                                    .border(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Chat,
-                                    contentDescription = "Chat",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp)
+                                Image(
+                                    painter = painterResource(id = R.drawable.img_litiobot),
+                                    contentDescription = "LitioBot",
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(CircleShape),
+                                    contentScale = ContentScale.Crop
                                 )
                             }
-                            Spacer(modifier = Modifier.width(10.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
                                     text = "LitioBot - Soporte y Diagnóstico ⚡",
@@ -597,161 +952,171 @@ fun ClientWelcomeScreen(viewModel: LitioViewModel) {
             }
         }
 
-        // Sedes y Contacto Directo Card
+        // Sedes y Contacto Directo Card / Publicidad de Movilidad Gratis
         item {
             val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = "Sedes",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = "Nuestras Sedes - Litio Energy 📍",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Especialistas en Movilidad Eléctrica",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Grid of Branches with Google Maps search URLs
-                    val branches = listOf(
-                        Triple("SURCO", "Av. Santiago de Surco 4352", "https://www.google.com/maps/search/?api=1&query=Av.+Santiago+de+Surco+4352,+Santiago+de+Surco"),
-                        Triple("SAN BORJA", "Av. Aviación 2410 Stand 17", "https://www.google.com/maps/search/?api=1&query=Av.+Aviacion+2410,+San+Borja"),
-                        Triple("LINCE", "Av. José Leal 571", "https://www.google.com/maps/search/?api=1&query=Av.+Jose+Leal+571,+Lince"),
-                        Triple("SAN ISIDRO", "Av. Arenales 2584", "https://www.google.com/maps/search/?api=1&query=Av.+Arenales+2584,+San+Isidro")
-                    )
-
-                    branches.forEach { (name, address, mapsUrl) ->
+            if (!isRegisterTab) {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
                         Row(
-                            verticalAlignment = Alignment.Top,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    try {
-                                        uriHandler.openUri(mapsUrl)
-                                    } catch (e: Exception) {
-                                        // Ignore or fallback
-                                    }
-                                }
-                                .padding(vertical = 6.dp)
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "📍",
-                                fontSize = 14.sp,
-                                modifier = Modifier.padding(top = 1.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        text = name,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Text(
-                                        text = "Ver mapa ➔",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                                    )
-                                }
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = "Sedes",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
                                 Text(
-                                    text = address,
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
+                                    text = "Nuestras Sedes - Litio Energy 📍",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Especialistas en Movilidad Eléctrica",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 )
                             }
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
 
-                    OutlinedTextField(
-                        value = welcomeQueryMessage,
-                        onValueChange = { welcomeQueryMessage = it },
-                        label = { Text("Escribe tu consulta o duda sobre tu scooter...", fontSize = 12.sp) },
-                        placeholder = { Text("Ej: ¿Cuánto cuesta el cambio de batería de litio?", fontSize = 12.sp) },
-                        leadingIcon = { Icon(Icons.Default.Message, null, modifier = Modifier.size(18.dp), tint = Color(0xFF25D366)) },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF25D366),
-                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
-                            focusedLabelColor = Color(0xFF25D366)
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
-                        maxLines = 3
-                    )
+                        // Grid of Branches with Google Maps search URLs
+                        val branches = listOf(
+                            Triple("SURCO", "Av. Santiago de Surco 4352", "https://www.google.com/maps/search/?api=1&query=Av.+Santiago+de+Surco+4352,+Santiago+de+Surco"),
+                            Triple("SAN BORJA", "Av. Aviación 2410 Stand 17", "https://www.google.com/maps/search/?api=1&query=Av.+Aviacion+2410,+San+Borja"),
+                            Triple("LINCE", "Av. José Leal 571", "https://www.google.com/maps/search/?api=1&query=Av.+Jose+Leal+571,+Lince"),
+                            Triple("SAN ISIDRO", "Av. Arenales 2584", "https://www.google.com/maps/search/?api=1&query=Av.+Arenales+2584,+San+Isidro")
+                        )
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Contact button
-                    Button(
-                        onClick = {
-                            try {
-                                val baseText = if (welcomeQueryMessage.isNotBlank()) {
-                                    "¡Hola Litio Energy! Tengo la siguiente consulta sobre mi scooter: $welcomeQueryMessage"
-                                } else {
-                                    "¡Hola Litio Energy! Quisiera hacer una consulta técnica sobre mi vehículo eléctrico."
+                        branches.forEach { (name, address, mapsUrl) ->
+                            Row(
+                                verticalAlignment = Alignment.Top,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        try {
+                                            uriHandler.openUri(mapsUrl)
+                                        } catch (e: Exception) {
+                                            // Ignore or fallback
+                                        }
+                                    }
+                                    .padding(vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = "📍",
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.padding(top = 1.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            text = name,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Text(
+                                            text = "Ver mapa ➔",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                                        )
+                                    }
+                                    Text(
+                                        text = address,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
+                                    )
                                 }
-                                val encodedText = java.net.URLEncoder.encode(baseText, "UTF-8")
-                                uriHandler.openUri("https://api.whatsapp.com/send?phone=51975925094&text=$encodedText")
-                            } catch (e: Exception) {
-                                uriHandler.openUri("https://api.whatsapp.com/send?phone=51975925094")
                             }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Phone,
-                            contentDescription = "WhatsApp",
-                            tint = Color.Black,
-                            modifier = Modifier.size(16.dp)
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        OutlinedTextField(
+                            value = welcomeQueryMessage,
+                            onValueChange = { welcomeQueryMessage = it },
+                            label = { Text("Escribe tu consulta o duda sobre tu scooter...", fontSize = 12.sp) },
+                            placeholder = { Text("Ej: ¿Cuánto cuesta el cambio de batería de litio?", fontSize = 12.sp) },
+                            leadingIcon = { Icon(Icons.Default.Message, null, modifier = Modifier.size(18.dp), tint = Color(0xFF25D366)) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF25D366),
+                                unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                                focusedLabelColor = Color(0xFF25D366)
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                            maxLines = 3
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Contactar por WhatsApp (975 925 094)",
-                            color = Color.Black,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Contact button
+                        Button(
+                            onClick = {
+                                try {
+                                    val baseText = if (welcomeQueryMessage.isNotBlank()) {
+                                        "¡Hola Litio Energy! Tengo la siguiente consulta sobre mi scooter: $welcomeQueryMessage"
+                                    } else {
+                                        "¡Hola Litio Energy! Quisiera hacer una consulta técnica sobre mi vehículo eléctrico."
+                                    }
+                                    val encodedText = java.net.URLEncoder.encode(baseText, "UTF-8")
+                                    uriHandler.openUri("https://api.whatsapp.com/send?phone=51975925094&text=$encodedText")
+                                } catch (e: Exception) {
+                                    uriHandler.openUri("https://api.whatsapp.com/send?phone=51975925094")
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Phone,
+                                contentDescription = "WhatsApp",
+                                tint = Color.Black,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Contactar por WhatsApp (975 925 094)",
+                                color = Color.Black,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                        }
                     }
                 }
+            } else {
+                PeugeotVanAdCard(onOpenUrl = { url ->
+                    try {
+                        uriHandler.openUri(url)
+                    } catch (e: Exception) {
+                        // Fallback
+                    }
+                })
             }
         }
     }
@@ -775,7 +1140,7 @@ fun LookupStatusCard(viewModel: LitioViewModel) {
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Ingresa el número celular que registraste al dejar tu scooter, bicicleta o moto para ver los detalles de tu servicio técnico.",
+                text = "Ingresa tu número de DNI/C.E. que registraste al dejar tu equipo para ver los detalles de tu servicio técnico.",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 lineHeight = 16.sp
@@ -783,32 +1148,32 @@ fun LookupStatusCard(viewModel: LitioViewModel) {
             Spacer(modifier = Modifier.height(16.dp))
 
             OutlinedTextField(
-                value = viewModel.lookupPhoneQuery,
+                value = viewModel.lookupDniQuery,
                 onValueChange = { 
-                    viewModel.lookupPhoneQuery = it.filter { char -> char.isDigit() || char == '+' } 
+                    viewModel.lookupDniQuery = it.filter { char -> char.isLetterOrDigit() } 
                 },
-                label = { Text("Número de Celular") },
+                label = { Text("DNI/C.E.") },
                 leadingIcon = { 
                     Icon(
-                        imageVector = Icons.Default.Phone, 
-                        contentDescription = "Celular",
+                        imageVector = Icons.Default.QrCode, 
+                        contentDescription = "Documento de Identidad",
                         tint = MaterialTheme.colorScheme.primary
                     ) 
                 },
-                placeholder = { Text("Ej: 987654321") },
+                placeholder = { Text("Ej: 12345678 o 001234567") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Phone,
+                    keyboardType = KeyboardType.Text,
                     imeAction = ImeAction.Search
                 ),
-                keyboardActions = KeyboardActions(onSearch = { viewModel.lookupClientByPhone() }),
+                keyboardActions = KeyboardActions(onSearch = { viewModel.lookupClientByDni() }),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
                     unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("lookup_phone_input")
+                    .testTag("lookup_dni_input")
             )
 
             if (viewModel.lookupError != null) {
@@ -833,7 +1198,7 @@ fun LookupStatusCard(viewModel: LitioViewModel) {
             Spacer(modifier = Modifier.height(20.dp))
 
             Button(
-                onClick = { viewModel.lookupClientByPhone() },
+                onClick = { viewModel.lookupClientByDni() },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
@@ -849,7 +1214,7 @@ fun LookupStatusCard(viewModel: LitioViewModel) {
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Buscar Vehículo", 
+                    text = "Acceder y Ver Estado", 
                     color = Color.Black,
                     fontWeight = FontWeight.Bold
                 )
@@ -858,53 +1223,13 @@ fun LookupStatusCard(viewModel: LitioViewModel) {
             Spacer(modifier = Modifier.height(20.dp))
 
             // Club Litio Energy Advertisement Card
-            Card(
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .background(Color(0xFF25D366).copy(alpha = 0.15f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Payments,
-                                contentDescription = "Membresía",
-                                tint = Color(0xFF25D366),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "Club LITIO ENERGY ⚡",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    
-                    Spacer(modifier = Modifier.height(10.dp))
-                    
-                    Text(
-                        text = "¡Sé parte de nuestro club exclusivo! Pagando una membresía mensual obtén excelentes beneficios para tu vehículo eléctrico:\n" +
-                               "• 🛠️ Mantenimientos gratis\n" +
-                               "• 🏷️ Descuentos en repuestos\n" +
-                               "• 🕒 Movilidad de auxilio las 24 horas del día y mucho más.",
-                        fontSize = 11.5.sp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-                        lineHeight = 16.sp
-                    )
+            ClubLitioInteractiveCard(onOpenUrl = { url ->
+                try {
+                    uriHandler.openUri(url)
+                } catch (e: Exception) {
+                    // Fallback
                 }
-            }
+            })
         }
     }
 }
@@ -1021,10 +1346,10 @@ fun RegistrationCard(viewModel: LitioViewModel) {
 
             OutlinedTextField(
                 value = viewModel.regDni,
-                onValueChange = { viewModel.regDni = it.filter { char -> char.isDigit() } },
-                label = { Text("DNI del Cliente") },
+                onValueChange = { viewModel.regDni = it.filter { char -> char.isLetterOrDigit() } },
+                label = { Text("DNI/C.E.") },
                 leadingIcon = { Icon(Icons.Default.QrCode, null, tint = MaterialTheme.colorScheme.primary) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1076,7 +1401,8 @@ fun RegistrationCard(viewModel: LitioViewModel) {
             OutlinedTextField(
                 value = viewModel.regVehicleSerial,
                 onValueChange = { viewModel.regVehicleSerial = it },
-                label = { Text("Número de Serie (Opcional)") },
+                label = { Text("Nº Serie / Otros") },
+                placeholder = { Text("Escribe Nº Serie, 'Otros' o detalles") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -1089,6 +1415,80 @@ fun RegistrationCard(viewModel: LitioViewModel) {
                 maxLines = 3,
                 modifier = Modifier.fillMaxWidth()
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "Lugar de Ingreso (Sede) *",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            val sedes = listOf("Litio Surco", "Litio San Borja", "Litio San Isidro", "Litio Lince")
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    sedes.take(2).forEach { sedeName ->
+                        val isSelected = viewModel.regSede == sedeName
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .clickable { viewModel.regSede = sedeName }
+                                .padding(vertical = 12.dp)
+                                .testTag("reg_sede_${sedeName.replace(" ", "_").lowercase()}"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = sedeName,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    sedes.takeLast(2).forEach { sedeName ->
+                        val isSelected = viewModel.regSede == sedeName
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .clickable { viewModel.regSede = sedeName }
+                                .padding(vertical = 12.dp)
+                                .testTag("reg_sede_${sedeName.replace(" ", "_").lowercase()}"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = sedeName,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(20.dp))
 
@@ -1261,7 +1661,8 @@ fun ClientDashboard(
                             TechnicalDetailRow("Marca/Modelo:", "${client.vehicleBrand} ${client.vehicleModel}")
                             TechnicalDetailRow("Tipo de Equipo:", client.vehicleType)
                             TechnicalDetailRow("Nº de Serie:", client.vehicleSerialNumber)
-                            TechnicalDetailRow("DNI del Cliente:", client.dni.ifBlank { "No registrado" })
+                            TechnicalDetailRow("DNI/C.E.:", client.dni.ifBlank { "No registrado" })
+                            TechnicalDetailRow("Lugar de Ingreso:", client.sede)
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             TechnicalDetailRow("Falla Inicial:", client.problemDescription)
@@ -1558,7 +1959,7 @@ fun ChatWindow(viewModel: LitioViewModel) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(max = 350.dp)
+            .height(420.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Messages Panel
@@ -1662,7 +2063,6 @@ fun ChatWindow(viewModel: LitioViewModel) {
 fun ChatBubble(message: ChatMessage) {
     val bubbleColor = if (message.isUser) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                       else MaterialTheme.colorScheme.surfaceVariant
-    val alignment = if (message.isUser) Alignment.End else Alignment.Start
     val shape = if (message.isUser) {
         RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp, bottomStart = 12.dp, bottomEnd = 0.dp)
     } else {
@@ -1675,33 +2075,35 @@ fun ChatBubble(message: ChatMessage) {
         BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
     }
 
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 2.dp),
-        horizontalAlignment = alignment
+        horizontalArrangement = if (message.isUser) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.Bottom
     ) {
         Surface(
             color = bubbleColor,
             border = bubbleBorder,
             shape = shape,
-            tonalElevation = if (message.isUser) 0.dp else 1.dp
+            tonalElevation = if (message.isUser) 0.dp else 1.dp,
+            modifier = Modifier.weight(1f, fill = false)
         ) {
-            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
                 if (!message.isUser) {
                     Text(
-                        text = "🤖 LitioBot",
-                        fontSize = 9.sp,
+                        text = "LitioBot ⚡",
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(bottom = 2.dp)
+                        modifier = Modifier.padding(bottom = 4.dp)
                     )
                 }
                 Text(
                     text = message.text,
-                    fontSize = 12.sp,
+                    fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurface,
-                    lineHeight = 16.sp
+                    lineHeight = 20.sp
                 )
             }
         }
@@ -1732,7 +2134,10 @@ fun AdminDashboard(viewModel: LitioViewModel) {
                 webhookUrl = viewModel.googleSheetsWebhookUrl,
                 onWebhookUrlChanged = { viewModel.updateGoogleSheetsWebhookUrl(it) },
                 syncStatus = viewModel.syncStatusMessage,
-                onClearStatus = { viewModel.syncStatusMessage = null }
+                onClearStatus = { viewModel.syncStatusMessage = null },
+                onSyncAll = { viewModel.syncAllToGoogleSheets(clients) },
+                isSyncing = viewModel.isSyncingSheets,
+                onResetUrl = { viewModel.resetToDefaultGoogleSheetsUrl() }
             )
 
             // Filters Box
@@ -1780,7 +2185,8 @@ fun AdminDashboard(viewModel: LitioViewModel) {
                                 viewModel.clientBeingEdited = client
                                 viewModel.isEditingClientDialogVisible = true
                             },
-                            onDelete = { viewModel.deleteClient(client) }
+                            onDelete = { viewModel.deleteClient(client) },
+                            onSync = { viewModel.syncToGoogleSheets(client) }
                         )
                     }
                 }
@@ -1926,7 +2332,10 @@ fun AdminGoogleSheetsConfigRow(
     webhookUrl: String,
     onWebhookUrlChanged: (String) -> Unit,
     syncStatus: String?,
-    onClearStatus: () -> Unit
+    onClearStatus: () -> Unit,
+    onSyncAll: () -> Unit,
+    isSyncing: Boolean,
+    onResetUrl: () -> Unit
 ) {
     var showGuide by remember { mutableStateOf(false) }
 
@@ -1985,6 +2394,62 @@ fun AdminGoogleSheetsConfigRow(
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(16.dp)
                     )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Sync All Button Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Reset to default button
+                TextButton(
+                    onClick = onResetUrl,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier.height(28.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Restablecer URL",
+                        modifier = Modifier.size(12.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Restablecer Webhook", fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
+                }
+
+                Button(
+                    onClick = onSyncAll,
+                    enabled = !isSyncing && webhookUrl.isNotBlank(),
+                    shape = RoundedCornerShape(4.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary,
+                        contentColor = Color.Black
+                    ),
+                    modifier = Modifier.height(28.dp)
+                ) {
+                    if (isSyncing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(10.dp),
+                            strokeWidth = 1.5.dp,
+                            color = Color.Black
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Sincronizando...", fontSize = 10.sp, color = Color.Black)
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.CloudSync,
+                            contentDescription = null,
+                            modifier = Modifier.size(12.dp),
+                            tint = Color.Black
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Sincronizar todos a Google Sheets", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    }
                 }
             }
 
@@ -2077,16 +2542,16 @@ fun AdminGoogleSheetsConfigRow(
                                 text = "function doPost(e) {\n" +
                                        "  try {\n" +
                                        "    var d = JSON.parse(e.postData.contents);\n" +
-                                       "    var sheetName = d.sheetName || 'clientes litio appps';\n" +
+                                       "    var sheetName = d.sheetName || 'Clientes litio energy';\n" +
                                        "    var ss = SpreadsheetApp.getActiveSpreadsheet();\n" +
                                        "    var s = ss.getSheetByName(sheetName);\n" +
                                        "    if (!s) {\n" +
                                        "      s = ss.insertSheet(sheetName);\n" +
                                        "    }\n" +
                                        "    if (s.getLastRow() === 0) {\n" +
-                                       "      s.appendRow(['ID', 'Fecha', 'Nombre', 'Celular', 'Email', 'Tipo', 'Marca', 'Modelo', 'Nº Serie', 'Falla', 'Estado', 'Progreso', 'Costo', 'Fecha Entrega', 'Notas']);\n" +
+                                       "      s.appendRow(['ID', 'Fecha', 'Nombre', 'DNI', 'Celular', 'Email', 'Tipo', 'Marca', 'Modelo', 'Nº Serie', 'Falla', 'Estado', 'Progreso', 'Costo', 'Fecha Entrega', 'Sede', 'Notas']);\n" +
                                        "    }\n" +
-                                       "    s.appendRow([d.id, new Date().toLocaleString(), d.name, d.phone, d.email, d.vehicleType, d.vehicleBrand, d.vehicleModel, d.vehicleSerialNumber, d.problemDescription, d.status, d.progress, d.estimatedCost, d.estimatedCompletionDate, d.technicianNotes]);\n" +
+                                       "    s.appendRow([d.id, new Date().toLocaleString(), d.name, d.dni || '', d.phone, d.email, d.vehicleType, d.vehicleBrand, d.vehicleModel, d.vehicleSerialNumber, d.problemDescription, d.status, d.progress, d.estimatedCost, d.estimatedCompletionDate, d.sede || '', d.technicianNotes]);\n" +
                                        "    return ContentService.createTextOutput(JSON.stringify({status:'success', message:'Sincronizado en: ' + sheetName})).setMimeType(ContentService.MimeType.JSON);\n" +
                                        "  } catch(err) {\n" +
                                        "    return ContentService.createTextOutput(JSON.stringify({status:'error', message:err.toString()})).setMimeType(ContentService.MimeType.JSON);\n" +
@@ -2226,7 +2691,8 @@ fun AdminFiltersBox(
 fun AdminClientCard(
     client: ClientEntity,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onSync: () -> Unit
 ) {
     val (statusColor, vehicleIcon) = when (client.status) {
         "Recibido" -> Pair(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), Icons.Default.Info)
@@ -2258,7 +2724,7 @@ fun AdminClientCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
                             .size(36.dp)
@@ -2276,15 +2742,21 @@ fun AdminClientCard(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Cel: ${client.phone} | DNI: ${client.dni.ifBlank { "N/A" }} | S/N: ${client.vehicleSerialNumber}",
+                            text = "Cel: ${client.phone} | DNI/C.E.: ${client.dni.ifBlank { "N/A" }} | S/N: ${client.vehicleSerialNumber}",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                         )
                     }
                 }
 
-                // Edit / Delete Buttons
-                Row {
+                // Sync / Edit / Delete Buttons
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = onSync,
+                        modifier = Modifier.size(32.dp).testTag("sync_client_button_${client.id}")
+                    ) {
+                        Icon(Icons.Default.CloudSync, "Sincronizar", tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(18.dp))
+                    }
                     IconButton(
                         onClick = onEdit,
                         modifier = Modifier.size(32.dp).testTag("edit_client_button_${client.id}")
@@ -2536,7 +3008,8 @@ fun AddClientDialog(
     var model by remember { mutableStateOf("") }
     var serial by remember { mutableStateOf("") }
     var problem by remember { mutableStateOf("") }
-    var cost by remember { mutableStateOf("20.00") }
+    var cost by remember { mutableStateOf("0.00") }
+    var sede by remember { mutableStateOf("Litio Surco") }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -2591,10 +3064,10 @@ fun AddClientDialog(
                 item {
                     OutlinedTextField(
                         value = dni,
-                        onValueChange = { dni = it.filter { char -> char.isDigit() } },
-                        label = { Text("DNI del Cliente") },
+                        onValueChange = { dni = it.filter { char -> char.isLetterOrDigit() } },
+                        label = { Text("DNI/C.E.") },
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                         modifier = Modifier.fillMaxWidth().testTag("add_dni_input")
                     )
                 }
@@ -2648,7 +3121,8 @@ fun AddClientDialog(
                     OutlinedTextField(
                         value = serial,
                         onValueChange = { serial = it },
-                        label = { Text("Nº Serie") },
+                        label = { Text("Nº Serie / Otros") },
+                        placeholder = { Text("Escribe Nº Serie, 'Otros' o detalles") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -2662,6 +3136,54 @@ fun AddClientDialog(
                         maxLines = 3,
                         modifier = Modifier.fillMaxWidth()
                     )
+                }
+
+                item {
+                    // Sede selector
+                    Text("Lugar de Ingreso (Sede):", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val sedes = listOf("Litio Surco", "Litio San Borja", "Litio San Isidro", "Litio Lince")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            sedes.take(2).forEach { sedeName ->
+                                val isSelected = sede == sedeName
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent)
+                                        .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray, RoundedCornerShape(6.dp))
+                                        .clickable { sede = sedeName }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(sedeName, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            sedes.takeLast(2).forEach { sedeName ->
+                                val isSelected = sede == sedeName
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent)
+                                        .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray, RoundedCornerShape(6.dp))
+                                        .clickable { sede = sedeName }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(sedeName, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
                 }
 
                 item {
@@ -2688,13 +3210,14 @@ fun AddClientDialog(
                                 vehicleType = vType,
                                 vehicleBrand = brand,
                                 vehicleModel = model,
-                                vehicleSerialNumber = serial.ifBlank { "S/N-PENDIENTE" },
+                                vehicleSerialNumber = serial.ifBlank { "Otros" },
                                 problemDescription = problem.ifBlank { "Revisión preventiva" },
                                 status = "Recibido",
                                 progress = 10,
                                 technicianNotes = "Ingresado a taller.",
-                                estimatedCost = cost.toDoubleOrNull() ?: 20.0,
-                                estimatedCompletionDate = "A coordinar"
+                                estimatedCost = cost.toDoubleOrNull() ?: 0.0,
+                                estimatedCompletionDate = "A coordinar",
+                                sede = sede
                             )
                             onAdd(newC)
                         },
@@ -2715,3 +3238,604 @@ fun AddClientDialog(
         }
     }
 }
+
+@Composable
+fun PeugeotVanAdCard(
+    onOpenUrl: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+        ),
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column {
+            // Header with White Service Camioneta Image - Larger and Bolder
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.camioneta_litio_energy_1783563676419),
+                    contentDescription = "Camioneta de Servicio Litio Energy",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                // Gradient overlay
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    Color.Black.copy(alpha = 0.85f)
+                                )
+                            )
+                        )
+                )
+                
+                // Active Promotion Badge - Redesigned to stand out
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(14.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = RoundedCornerShape(6.dp)
+                        )
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "MOVILIDAD 100% GRATIS",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color.Black
+                    )
+                }
+
+                // Litio Energy miniature logo
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    LitioBrandLogo(
+                        fontSize = 14f,
+                        primaryColor = MaterialTheme.colorScheme.primary,
+                        subColor = Color.White
+                    )
+                }
+            }
+
+            // Description and Interaction - Spaced out and bolder
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = "¡Recogemos tu vehículo gratis! Solo envíanos tu ubicación 🚚",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    lineHeight = 22.sp
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Text(
+                    text = "En Litio Energy te lo ponemos fácil: nuestra camioneta de servicio se desplazará a tu domicilio o donde te encuentres para recoger tu scooter, bicicleta o moto eléctrica sin costo adicional. ¡Olvídate de empujar o cargar tu vehículo!",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                    lineHeight = 18.sp
+                )
+                
+                Spacer(modifier = Modifier.height(18.dp))
+                
+                Button(
+                    onClick = {
+                        try {
+                            val baseText = "¡Hola Litio Energy! Deseo coordinar el recojo gratuito de mi vehículo eléctrico con su camioneta de servicio. Adjunto mi ubicación actual:"
+                            val encodedText = java.net.URLEncoder.encode(baseText, "UTF-8")
+                            onOpenUrl("https://api.whatsapp.com/send?phone=51975925094&text=$encodedText")
+                        } catch (e: Exception) {
+                            onOpenUrl("https://api.whatsapp.com/send?phone=51975925094")
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF25D366) // WhatsApp branding color
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(vertical = 14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = "Enviar Ubicación",
+                        tint = Color.Black,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Enviar Ubicación por WhatsApp",
+                        color = Color.Black,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 13.5.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ClubLitioInteractiveCard(
+    onOpenUrl: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var isAnnual by remember { mutableStateOf(false) }
+    var expandedBenefit by remember { mutableStateOf<Int?>(null) }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "lightning_transition")
+    
+    // Scale animation synchronized with the strike keyframes
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 0.5f,
+        targetValue = 1.4f,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                durationMillis = 2400
+                0.5f at 0
+                0.5f at 1100
+                1.4f at 1200 // strike scale-up
+                1.0f at 1300
+                0.8f at 1350
+                1.3f at 1450 // bounce/double-flash scale
+                1.0f at 1550
+                0.5f at 1800
+            },
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "lightning_scale"
+    )
+    
+    // Rotation animation synchronized with the strike keyframes
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = -15f,
+        targetValue = 15f,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                durationMillis = 2400
+                0f at 0
+                0f at 1100
+                -15f at 1200
+                15f at 1300
+                -5f at 1450
+                5f at 1550
+                0f at 1700
+            },
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "lightning_rotation"
+    )
+
+    // Opacity/Alpha animation simulating the flashing of real lightning
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                durationMillis = 2400
+                0.0f at 0
+                0.0f at 1100
+                1.0f at 1200 // strike! maximum light
+                0.1f at 1350 // quick off
+                1.0f at 1450 // secondary flash
+                0.0f at 1700 // fade to nothing
+            },
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "lightning_alpha"
+    )
+
+    // Falling / translationY animation simulating the lightning striking from above
+    val translationY by infiniteTransition.animateFloat(
+        initialValue = -12f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                durationMillis = 2400
+                -15f at 0
+                -15f at 1100 // up and waiting
+                0f at 1200   // strikes down instantly!
+                0f at 2400   // remains down
+            },
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "lightning_translation"
+    )
+
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.Transparent
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f),
+                    MaterialTheme.colorScheme.tertiary.copy(alpha = 0.8f),
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                )
+            )
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            // Header with premium VIP Crown badge
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(50.dp)
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
+                                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f),
+                                    Color.Transparent
+                                )
+                            ),
+                            shape = CircleShape
+                        )
+                        .border(
+                            width = 1.dp,
+                            brush = Brush.linearGradient(
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.primary,
+                                    MaterialTheme.colorScheme.secondary,
+                                    MaterialTheme.colorScheme.tertiary
+                                )
+                            ),
+                            shape = CircleShape
+                        )
+                        .padding(3.dp)
+                        .border(
+                            width = 0.8.dp,
+                            brush = Brush.linearGradient(
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.tertiary,
+                                    MaterialTheme.colorScheme.primary
+                                )
+                            ),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "👑",
+                        fontSize = 20.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(bottom = 1.dp) // Visual centering adjustment
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Start
+                    ) {
+                        Text(
+                            text = "Club LITIO VIP",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.primary, // Fits perfectly with the app's palette
+                            letterSpacing = 0.3.sp,
+                            maxLines = 1
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "⚡",
+                            fontSize = 18.sp,
+                            modifier = Modifier.graphicsLayer(
+                                scaleX = scale,
+                                scaleY = scale,
+                                rotationZ = rotation,
+                                alpha = alpha,
+                                translationY = translationY
+                            )
+                        )
+                    }
+                    Text(
+                        text = "Membresía Premium Todo Incluido",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Subtitle
+            Text(
+                text = "¡Ahorra dinero y mantén tu vehículo al 100%! Únete a nuestro selecto club con beneficios inigualables.",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                lineHeight = 18.sp
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Plan Toggle Switch (Mensual vs Anual)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Mensual Button
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (!isAnnual) MaterialTheme.colorScheme.primary else Color.Transparent)
+                        .clickable { isAnnual = false }
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Plan Mensual",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (!isAnnual) Color.Black else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                }
+
+                // Anual Button with badge
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (isAnnual) MaterialTheme.colorScheme.primary else Color.Transparent)
+                        .clickable { isAnnual = true }
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "Plan Anual",
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isAnnual) Color.Black else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    color = if (isAnnual) Color.Black else Color(0xFFFF5252),
+                                    shape = RoundedCornerShape(4.dp)
+                                )
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "Ahorra 20%",
+                                fontSize = 8.5.sp,
+                                fontWeight = FontWeight.Black,
+                                color = if (isAnnual) MaterialTheme.colorScheme.primary else Color.White
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Pricing Area
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = if (isAnnual) "S/ 40.00" else "S/ 50.00",
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Black,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = " / mes",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (isAnnual) "Cobrado anualmente (S/ 480.00 al año - ¡Socio VIP!)" else "Pago mensual sin contratos de permanencia",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (isAnnual) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Section Benefits Header
+            Text(
+                text = "Beneficios incluidos (Toca para ver detalles) 👇",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Black,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            // Benefits Grid / Accordion
+            val benefits = listOf(
+                BenefitItemData(
+                    id = 1,
+                    icon = "🛠️",
+                    title = "Mantenimientos Preventivos y Generales GRATIS",
+                    desc = "¡Ilimitados durante el año! Olvídate de pagar por cada ajuste. Revisión de batería, frenos, electrónica, electromecánica y motor, ¡todo gratis!"
+                ),
+                BenefitItemData(
+                    id = 2,
+                    icon = "🏷️",
+                    title = "Descuentos en todo tipo de repuestos",
+                    desc = "Ahorra en todo tipo de llantas ULIP, pastillas, zapatas, aceleradores, controladoras, pantallas, manijas de frenos, armado de baterías, etc... con precios exclusivos por ser socio del CLUB LITIO VIP."
+                ),
+                BenefitItemData(
+                    id = 3,
+                    icon = "🚚",
+                    title = "Movilidad de recogida GRATIS",
+                    desc = "Si tu equipo se queda sin carga o falla en la calle, nuestra camioneta de servicio va a recogerlo a domicilio 100% gratis."
+                ),
+                BenefitItemData(
+                    id = 4,
+                    icon = "💬",
+                    title = "Prioridad VIP en Taller y Chat",
+                    desc = "Tu scooter salta la fila. Reparación prioritaria garantizada y asesoría técnica 24/7 personalizada."
+                )
+            )
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                benefits.forEach { benefit ->
+                    val isExpanded = expandedBenefit == benefit.id
+                    Card(
+                        shape = RoundedCornerShape(10.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isExpanded) {
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+                            } else {
+                                MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)
+                            }
+                        ),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = if (isExpanded) {
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                            } else {
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                            }
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                expandedBenefit = if (isExpanded) null else benefit.id
+                            }
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(benefit.icon, fontSize = 16.sp)
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        text = benefit.title,
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        lineHeight = 15.sp
+                                    )
+                                }
+                                Text(
+                                    text = if (isExpanded) "▲" else "▼",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isExpanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                    modifier = Modifier.padding(horizontal = 4.dp)
+                                )
+                            }
+                            if (isExpanded) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = benefit.desc,
+                                    fontSize = 11.5.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                                    lineHeight = 15.sp,
+                                    modifier = Modifier.padding(start = 26.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Join Button (WhatsApp CTA)
+            Button(
+                onClick = {
+                    try {
+                        val planName = if (isAnnual) "Plan Anual (S/ 40.00/mes)" else "Plan Mensual (S/ 50.00/mes)"
+                        val baseText = "¡Hola Litio Energy! Estoy sumamente interesado en unirme al CLUB LITIO VIP en el $planName para disfrutar de Mantenimientos Preventivos y Generales Gratis, Descuentos en Repuestos y Movilidad Gratis. ¿Cómo puedo iniciar mi suscripción?"
+                        val encodedText = java.net.URLEncoder.encode(baseText, "UTF-8")
+                        onOpenUrl("https://api.whatsapp.com/send?phone=51975925094&text=$encodedText")
+                    } catch (e: Exception) {
+                        onOpenUrl("https://api.whatsapp.com/send?phone=51975925094")
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF25D366) // WhatsApp color
+                ),
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(vertical = 14.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = "Unirse",
+                    tint = Color.Black,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (isAnnual) "Unirse al Club - Plan Anual" else "Unirse al Club - Plan Mensual",
+                    color = Color.Black,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 14.sp
+                )
+            }
+        }
+    }
+}
+
+data class BenefitItemData(
+    val id: Int,
+    val icon: String,
+    val title: String,
+    val desc: String
+)
+

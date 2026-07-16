@@ -19,8 +19,9 @@ class LitioViewModelTest {
         val app = ApplicationProvider.getApplicationContext<Application>()
         val viewModel = LitioViewModel(app)
 
-        // Initial default config should be empty or default
-        assertEquals("", viewModel.googleSheetsWebhookUrl)
+        // Initial default config should be the active production sheets webhook URL
+        val expectedDefaultUrl = "https://script.google.com/macros/s/AKfycbykiBraleD0Xm4nDdPRt0qgnZJm6zUhpK_8gPsfI1Urmwh9wOeo_FNFrVz9ucBMydAHmA/exec"
+        assertEquals(expectedDefaultUrl, viewModel.googleSheetsWebhookUrl)
 
         // Set a new webhook URL
         val testUrl = "https://script.google.com/macros/s/ABC/exec"

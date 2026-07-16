@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.util.Base64
 
 plugins {
   alias(libs.plugins.android.application)
@@ -10,6 +11,22 @@ plugins {
 }
 
 android {
+  // Automatically restore debug.keystore from debug.keystore.base64 if it is missing (e.g. when exported to ZIP)
+  val debugKeystoreFile = file("${rootDir}/debug.keystore")
+  if (!debugKeystoreFile.exists()) {
+    val base64File = file("${rootDir}/debug.keystore.base64")
+    if (base64File.exists()) {
+      try {
+        val base64Content = base64File.readText().replace("\\s".toRegex(), "")
+        val decodedBytes = Base64.getDecoder().decode(base64Content)
+        debugKeystoreFile.writeBytes(decodedBytes)
+        logger.lifecycle("Successfully generated debug.keystore from base64 representation.")
+      } catch (e: Exception) {
+        logger.error("Failed to decode debug.keystore.base64: ${e.message}")
+      }
+    }
+  }
+
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 

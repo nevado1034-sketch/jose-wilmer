@@ -13,6 +13,10 @@ class ClientRepository(private val clientDao: ClientDao) {
         return clientDao.getClientByPhone(phone)
     }
 
+    suspend fun getClientByDni(dni: String): ClientEntity? {
+        return clientDao.getClientByDni(dni)
+    }
+
     suspend fun insertClient(client: ClientEntity): Long {
         return clientDao.insertClient(client)
     }
