@@ -22,6 +22,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -77,6 +83,7 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Laptop
 import androidx.compose.material.icons.filled.Message
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
@@ -88,6 +95,8 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.TwoWheeler
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -97,6 +106,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -116,6 +126,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -162,29 +173,37 @@ class MainActivity : ComponentActivity() {
                 val viewModel: LitioViewModel = viewModel()
                 val context = LocalContext.current
 
-                Scaffold(
-                    modifier = Modifier.fillMaxSize(),
-                    bottomBar = {
-                        // Bottom spacer for safe areas if needed
-                    }
-                ) { innerPadding ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.background)
-                            .padding(innerPadding)
-                    ) {
-                        AppNavigation(
-                            viewModel = viewModel,
-                            onOpenUrl = { url ->
-                                try {
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    Toast.makeText(context, "No se pudo abrir WhatsApp. Verifica si está instalado.", Toast.LENGTH_LONG).show()
+                var showSplash by remember { mutableStateOf(true) }
+
+                if (showSplash) {
+                    AppSplashScreen(
+                        onDismiss = { showSplash = false }
+                    )
+                } else {
+                    Scaffold(
+                        modifier = Modifier.fillMaxSize(),
+                        bottomBar = {
+                            // Bottom spacer for safe areas if needed
+                        }
+                    ) { innerPadding ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.background)
+                                .padding(innerPadding)
+                        ) {
+                            AppNavigation(
+                                viewModel = viewModel,
+                                onOpenUrl = { url ->
+                                    try {
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "No se pudo abrir WhatsApp. Verifica si está instalado.", Toast.LENGTH_LONG).show()
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }
@@ -299,7 +318,7 @@ fun AppNavigation(
     Column(modifier = Modifier.fillMaxSize()) {
         // App Header (Shared Title & Toggle)
         AppHeader(
-            isAdminMode = viewModel.isAdminMode,
+            viewModel = viewModel,
             onToggleMode = {
                 if (viewModel.isAdminMode) {
                     viewModel.isAdminMode = false
@@ -330,6 +349,30 @@ fun LitioBrandMark(
     modifier: Modifier = Modifier,
     color: Color = MaterialTheme.colorScheme.primary
 ) {
+    val infiniteTransition = rememberInfiniteTransition(label = "litio_brand_pulse")
+    
+    // Smooth breathing effect for the ambient glowing halo and elements
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.82f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse_alpha"
+    )
+
+    // Flowing energy current phase for the lightning bolt gradient
+    val energyPhase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2800, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "energy_phase"
+    )
+
     Canvas(
         modifier = modifier
             .graphicsLayer(alpha = 0.99f) // Required for BlendMode.Clear to work on an offscreen buffer
@@ -337,51 +380,59 @@ fun LitioBrandMark(
         val width = size.width
         val height = size.height
         val cy = height * 0.45f
+        val skew = 0.33f
         
-        // Let's draw the outline and bolt relative to a proportional scale
-        val strokeWidth = width * 0.052f
-        val gapClearWidth = strokeWidth + width * 0.06f
+        fun p(nx: Float, ny: Float): Offset {
+            val py = ny * height
+            val px = nx * width + (cy - py) * skew
+            return Offset(px, py)
+        }
         
-        // Skew slant matching the reference image's italics angle (more aggressive slant)
-        val skew = 0.35f
-        fun getSlant(y: Float): Float = (cy - y) * skew
-        
-        // Proportions for the slanted battery shell - wider and shorter to match the real logo aspect ratio
-        val yTop = height * 0.22f
-        val yBottom = height * 0.68f
-        val xLeft = width * 0.10f
-        val xRight = width * 0.74f
-        
-        // Proportions for the right terminal cap
-        val yCapTop = height * 0.35f
-        val yCapBottom = height * 0.55f
-        val xCapRight = width * 0.88f
+        // Bold line strokes to match the user's high-contrast brand image
+        val strokeWidth = width * 0.075f
+        val gapClearWidth = strokeWidth + width * 0.09f
         
         val batteryPath = Path().apply {
-            moveTo(xLeft + getSlant(yTop), yTop)
-            lineTo(xRight + getSlant(yTop), yTop)
-            lineTo(xRight + getSlant(yCapTop), yCapTop)
-            lineTo(xCapRight + getSlant(yCapTop), yCapTop)
-            lineTo(xCapRight + getSlant(yCapBottom), yCapBottom)
-            lineTo(xRight + getSlant(yCapBottom), yCapBottom)
-            lineTo(xRight + getSlant(yBottom), yBottom)
-            lineTo(xLeft + getSlant(yBottom), yBottom)
+            val p1 = p(0.12f, 0.22f)
+            val p2 = p(0.70f, 0.22f)
+            val p3 = p(0.70f, 0.35f)
+            val p4 = p(0.82f, 0.35f)
+            val p5 = p(0.82f, 0.55f)
+            val p6 = p(0.70f, 0.55f)
+            val p7 = p(0.70f, 0.68f)
+            val p8 = p(0.12f, 0.68f)
+            
+            moveTo(p1.x, p1.y)
+            lineTo(p2.x, p2.y)
+            lineTo(p3.x, p3.y)
+            lineTo(p4.x, p4.y)
+            lineTo(p5.x, p5.y)
+            lineTo(p6.x, p6.y)
+            lineTo(p7.x, p7.y)
+            lineTo(p8.x, p8.y)
             close()
         }
         
         val boltPath = Path().apply {
-            // Perfect nested lightning bolt matching the provided image precisely
-            moveTo(width * 0.38f, height * 0.04f)
-            lineTo(width * 0.60f, height * 0.04f)
-            lineTo(width * 0.51f, height * 0.38f)
-            lineTo(width * 0.66f, height * 0.38f)
-            lineTo(width * 0.39f, height * 0.96f)
-            lineTo(width * 0.47f, height * 0.50f)
-            lineTo(width * 0.26f, height * 0.50f)
+            val b1 = p(0.31f, 0.06f)
+            val b2 = p(0.51f, 0.06f)
+            val b3 = p(0.51f, 0.40f)
+            val b4 = p(0.68f, 0.40f)
+            val b5 = p(0.34f, 0.94f)
+            val b6 = p(0.44f, 0.50f)
+            val b7 = p(0.31f, 0.50f)
+            
+            moveTo(b1.x, b1.y)
+            lineTo(b2.x, b2.y)
+            lineTo(b3.x, b3.y)
+            lineTo(b4.x, b4.y)
+            lineTo(b5.x, b5.y)
+            lineTo(b6.x, b6.y)
+            lineTo(b7.x, b7.y)
             close()
         }
         
-        // 1. Draw battery outline with rounded corners
+        // 1. Draw battery outline with rounded corners using solid corporate brand color
         drawPath(
             path = batteryPath,
             color = color,
@@ -415,10 +466,33 @@ fun LitioBrandMark(
             blendMode = BlendMode.Clear
         )
         
-        // 4. Draw filled bolt in the brand's primary color with slightly softened corners
+        // Calculate vertical sweep coordinates using the energy phase for a flowing fire energy current
+        val progress = energyPhase
+        val startY = height * (progress - 0.4f)
+        val endY = height * (progress + 0.4f)
+        
+        val fireColors = listOf(
+            color, // Base brand color of the bolt
+            color,
+            Color(0xFFFF3D00), // Fire Red-Orange
+            Color(0xFFFF9100), // Fire Orange
+            Color(0xFFFFEA00), // Fire Gold-Yellow
+            Color(0xFFFF9100), // Fire Orange
+            Color(0xFFFF3D00), // Fire Red-Orange
+            color,
+            color
+        )
+        
+        val boltBrush = Brush.linearGradient(
+            colors = fireColors,
+            start = Offset(0f, startY),
+            end = Offset(0f, endY)
+        )
+
+        // 4. Draw filled bolt with the animated fire-colored energy flow brush
         drawPath(
             path = boltPath,
-            color = color,
+            brush = boltBrush,
             style = Fill
         )
     }
@@ -430,23 +504,40 @@ fun LitioBrandLogo(
     primaryColor: Color = MaterialTheme.colorScheme.primary,
     subColor: Color = MaterialTheme.colorScheme.primary,
     showSlogan: Boolean = false,
-    fontSize: Float = 20f
+    fontSize: Float = 20f,
+    sloganColor: Color = MaterialTheme.colorScheme.secondary,
+    sloganSubColor: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
 ) {
+    val infiniteTransition = rememberInfiniteTransition(label = "litio_logo_pulse")
+    
+    // Active energy sliding phase for the wordmark letters
+    val phase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 3200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "logo_phase"
+    )
+
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        val markSize = (fontSize * 2.3f).dp
+        val markSize = (fontSize * 2.4f).dp
         LitioBrandMark(
-            modifier = Modifier.size(markSize),
+            modifier = Modifier
+                .size(markSize)
+                .offset(y = (-fontSize * 0.14f).dp),
             color = primaryColor
         )
         
-        Spacer(modifier = Modifier.width((fontSize * 0.45f).dp))
+        Spacer(modifier = Modifier.width((fontSize * 0.52f).dp))
         
         Column {
-            val wordmarkHeight = (fontSize * 0.95f).dp
-            val wordmarkWidth = (fontSize * 2.7f).dp
+            val wordmarkHeight = (fontSize * 1.5f).dp
+            val wordmarkWidth = (fontSize * 4.6f).dp
             
             Canvas(
                 modifier = Modifier
@@ -456,160 +547,186 @@ fun LitioBrandLogo(
             ) {
                 val w = size.width
                 val H = size.height
-                val s = 0.38f // Match the sporty italic slant of the official logo
+                val s = 0.33f // Match the sporty italic slant of the official logo exactly
                 val yBaseline = H * 0.90f
                 val yTopAscender = H * 0.10f
-                val yDotBottom = H * 0.28f
-                val yXHeight = H * 0.54f
                 
                 // Calculate precise available width factoring in slant-induced horizontal shift
                 val Shift = (yBaseline - yTopAscender) * s
-                val padding = w * 0.03f
+                val padding = w * 0.02f
                 val W_base = w - Shift - 2 * padding
                 
-                // Divide base width into exactly 8.0 units of the design grid
-                val T = W_base / 8.0f
+                // Divide base width into exactly 14.65f units for precise proportional spacing
+                val T = W_base / 14.65f
                 val xStart = padding
                 
-                val S_w = T * 1.0f    // Stem width (consistent across all letters)
-                val G = T * 0.35f      // Standard gap between separate letters
-                val G_t = T * 0.50f    // Inner gap for 't-i2' connection block
-                val G_o = T * 0.45f    // Inner horizontal cutout of 'o'
+                val S_w = T * 1.15f        // Extremely consistent, bold, and premium stem width
+                val G = T * 1.35f          // Uniform spacing between all stems (increased for perfect legibility)
+                val G_o_inner = T * 0.65f  // Perfectly proportioned inner width for 'o'
                 
                 fun slantedX(x: Float, y: Float): Float = x + (yBaseline - y) * s
                 
-                // Base-level start positions
+                // Precise vertical guide lines matching the reference image
+                val H_total = yBaseline - yTopAscender
+                val yDotBottom = yTopAscender + H_total * 0.22f  // Top bar & 'i1' dot height
+                val yXHeight = yTopAscender + H_total * 0.34f    // All stem tops align perfectly here
+                
+                // Professional energy current gradient brushing for the letters
+                val relativeLuminance = primaryColor.red * 0.2126f + primaryColor.green * 0.7152f + primaryColor.blue * 0.0722f
+                val highlightColor = if (relativeLuminance > 0.5f) Color.White else Color(0xFFC1F2FC)
+                
+                val logoBrush = Brush.linearGradient(
+                    colors = listOf(
+                        primaryColor,
+                        primaryColor,
+                        highlightColor,
+                        primaryColor,
+                        primaryColor
+                    ),
+                    start = Offset(w * (phase - 0.5f), 0f),
+                    end = Offset(w * (phase + 0.5f), 0f)
+                )
+                
+                // Helper to draw beautifully rounded slanted parallelograms for perfect letter shapes using a brush
+                fun drawSlantedRoundRect(
+                    xLeft: Float,
+                    xRight: Float,
+                    yTop: Float,
+                    yBottom: Float,
+                    radius: Float,
+                    brush: Brush
+                ) {
+                    val path = Path().apply {
+                        val r = radius.coerceAtMost((xRight - xLeft) / 2f).coerceAtMost((yBottom - yTop) / 2f)
+                        moveTo(slantedX(xLeft + r, yTop), yTop)
+                        lineTo(slantedX(xRight - r, yTop), yTop)
+                        quadraticTo(slantedX(xRight, yTop), yTop, slantedX(xRight, yTop + r), yTop + r)
+                        lineTo(slantedX(xRight, yBottom - r), yBottom - r)
+                        quadraticTo(slantedX(xRight, yBottom), yBottom, slantedX(xRight - r, yBottom), yBottom)
+                        lineTo(slantedX(xLeft + r, yBottom), yBottom)
+                        quadraticTo(slantedX(xLeft, yBottom), yBottom, slantedX(xLeft, yBottom - r), yBottom - r)
+                        lineTo(slantedX(xLeft, yTop + r), yTop + r)
+                        quadraticTo(slantedX(xLeft, yTop), yTop, slantedX(xLeft + r, yTop), yTop)
+                        close()
+                    }
+                    drawPath(path = path, brush = brush, style = Fill)
+                }
+                
+                // Base-level start positions calculated sequentially to avoid overlap or deformities
                 val x_l = xStart
                 val x_i1 = x_l + S_w + G
+                
+                // Let's define the t dimensions
+                val S_w_t_left = T * 1.15f   // Keep left stem standard width for elegance
+                val gap_x = T * 0.45f         // Beautiful, proportional gap
+                val S_w_t_right = T * 1.15f  // Right foot standard width
+                val gap_y = T * 0.35f         // Gap below crossbar
+                
                 val x_t = x_i1 + S_w + G
-                val x_i2 = x_t + S_w + G_t
+                val x_foot_left = x_t + S_w_t_left + gap_x
+                val x_foot_right = x_foot_left + S_w_t_right
+                
+                // Position subsequent letters sequentially starting after t's right foot ends
+                val x_i2 = x_foot_right + G
                 val x_o_l = x_i2 + S_w + G
-                val x_o_r = x_o_l + S_w + G_o
+                val x_o_r = x_o_l + S_w + G_o_inner
                 
-                // 1. l - Solid slanted bar from baseline to top ascender
-                val pathL = Path().apply {
-                    moveTo(slantedX(x_l, yTopAscender), yTopAscender)
-                    lineTo(slantedX(x_l + S_w, yTopAscender), yTopAscender)
-                    lineTo(slantedX(x_l + S_w, yBaseline), yBaseline)
-                    lineTo(slantedX(x_l, yBaseline), yBaseline)
-                    close()
-                }
-                drawPath(path = pathL, color = primaryColor, style = Fill)
+                // 1. Draw letter 'l' (tall slanted standalone bar)
+                drawSlantedRoundRect(x_l, x_l + S_w, yTopAscender, yBaseline, T * 0.18f, logoBrush)
                 
-                // 2. i (first) - stem
-                val pathI1Stem = Path().apply {
-                    moveTo(slantedX(x_i1, yXHeight), yXHeight)
-                    lineTo(slantedX(x_i1 + S_w, yXHeight), yXHeight)
-                    lineTo(slantedX(x_i1 + S_w, yBaseline), yBaseline)
-                    lineTo(slantedX(x_i1, yBaseline), yBaseline)
-                    close()
-                }
-                drawPath(path = pathI1Stem, color = primaryColor, style = Fill)
+                // 2. Draw letter 'i1' stem
+                drawSlantedRoundRect(x_i1, x_i1 + S_w, yXHeight, yBaseline, T * 0.18f, logoBrush)
                 
-                // 2. i (first) - separate dot
-                val pathI1Dot = Path().apply {
-                    moveTo(slantedX(x_i1, yTopAscender), yTopAscender)
-                    lineTo(slantedX(x_i1 + S_w, yTopAscender), yTopAscender)
-                    lineTo(slantedX(x_i1 + S_w, yDotBottom), yDotBottom)
-                    lineTo(slantedX(x_i1, yDotBottom), yDotBottom)
-                    close()
-                }
-                drawPath(path = pathI1Dot, color = primaryColor, style = Fill)
+                // 3. Draw letter 'i1' separate dot (tall slanted standalone capsule)
+                drawSlantedRoundRect(x_i1, x_i1 + S_w, yTopAscender, yDotBottom, T * 0.18f, logoBrush)
                 
-                // 3. t & i (second) - stems drawn as a solid block first
-                val pathTI2Block = Path().apply {
-                    moveTo(slantedX(x_t, yXHeight), yXHeight)
-                    lineTo(slantedX(x_i2 + S_w, yXHeight), yXHeight)
-                    lineTo(slantedX(x_i2 + S_w, yBaseline), yBaseline)
-                    lineTo(slantedX(x_t, yBaseline), yBaseline)
-                    close()
-                }
-                drawPath(path = pathTI2Block, color = primaryColor, style = Fill)
+                // 4. Draw letter 't' as a custom split/stencil shape matching the logo design
+                val r = T * 0.18f
+                val h_cross = S_w * 0.45f
+                val r_inner = T * 0.15f
                 
-                // 3. Clear the cutout under the 't-i2' bridge with beautiful rounded top corners
-                val bridgeThickness = S_w * 0.70f
-                val yBridgeBottom = yXHeight + bridgeThickness
-                val r = T * 0.20f // curve radius
-                val pathCutout = Path().apply {
-                    moveTo(slantedX(x_i2, yBaseline), yBaseline)
-                    lineTo(slantedX(x_i2, yBridgeBottom + r), yBridgeBottom + r)
+                // Top-right of crossbar aligns with the right foot edge
+                val xCrossRight = x_foot_right + T * 0.10f
+                val yCrossBottom = yXHeight + h_cross
+                
+                val pathTLeftAndCross = Path().apply {
+                    // Start at top-left of left stem
+                    moveTo(slantedX(x_t + r, yTopAscender), yTopAscender)
+                    // Line horizontally to top-right of left stem
+                    lineTo(slantedX(x_t + S_w_t_left - r, yTopAscender), yTopAscender)
+                    // Round the top-right corner of left stem
+                    quadraticTo(slantedX(x_t + S_w_t_left, yTopAscender), yTopAscender, slantedX(x_t + S_w_t_left, yTopAscender + r), yTopAscender + r)
+                    // Line down right edge of upper stem to the top of the crossbar
+                    lineTo(slantedX(x_t + S_w_t_left, yXHeight - r_inner), yXHeight - r_inner)
+                    // Round the corner of the step
+                    quadraticTo(slantedX(x_t + S_w_t_left, yXHeight), yXHeight, slantedX(x_t + S_w_t_left + r_inner, yXHeight), yXHeight)
+                    // Line right along the top of the crossbar to the top-right corner of the crossbar
+                    lineTo(slantedX(xCrossRight - r, yXHeight), yXHeight)
+                    // Round the top-right corner of crossbar
+                    quadraticTo(slantedX(xCrossRight, yXHeight), yXHeight, slantedX(xCrossRight, yXHeight + r), yXHeight + r)
+                    // Line down right edge of crossbar
+                    lineTo(slantedX(xCrossRight, yCrossBottom - r), yCrossBottom - r)
+                    // Round the bottom-right corner of crossbar
+                    quadraticTo(slantedX(xCrossRight, yCrossBottom), yCrossBottom, slantedX(xCrossRight - r, yCrossBottom), yCrossBottom)
+                    // Line left along bottom of crossbar to inner corner (stop just before left stem right edge for inner curve)
+                    lineTo(slantedX(x_t + S_w_t_left + r_inner, yCrossBottom), yCrossBottom)
+                    // Round the inner corner under the crossbar
                     quadraticTo(
-                        slantedX(x_i2, yBridgeBottom), yBridgeBottom,
-                        slantedX(x_i2 - r, yBridgeBottom), yBridgeBottom
+                        slantedX(x_t + S_w_t_left, yCrossBottom), yCrossBottom,
+                        slantedX(x_t + S_w_t_left, yCrossBottom + r_inner), yCrossBottom + r_inner
                     )
-                    lineTo(slantedX(x_t + S_w + r, yBridgeBottom), yBridgeBottom)
-                    quadraticTo(
-                        slantedX(x_t + S_w, yBridgeBottom), yBridgeBottom,
-                        slantedX(x_t + S_w, yBridgeBottom + r), yBridgeBottom + r
-                    )
-                    lineTo(slantedX(x_t + S_w, yBaseline), yBaseline)
+                    // Line down right edge of left stem
+                    lineTo(slantedX(x_t + S_w_t_left, yBaseline - r), yBaseline - r)
+                    // Round bottom-right corner of left stem
+                    quadraticTo(slantedX(x_t + S_w_t_left, yBaseline), yBaseline, slantedX(x_t + S_w_t_left - r, yBaseline), yBaseline)
+                    // Line left to bottom-left corner of left stem
+                    lineTo(slantedX(x_t + r, yBaseline), yBaseline)
+                    // Round bottom-left corner of left stem
+                    quadraticTo(slantedX(x_t, yBaseline), yBaseline, slantedX(x_t, yBaseline - r), yBaseline - r)
+                    // Line up left slanted edge to top-left corner
+                    lineTo(slantedX(x_t, yTopAscender + r), yTopAscender + r)
+                    // Round top-left corner
+                    quadraticTo(slantedX(x_t, yTopAscender), yTopAscender, slantedX(x_t + r, yTopAscender), yTopAscender)
+                    close()
+                }
+                drawPath(path = pathTLeftAndCross, brush = logoBrush, style = Fill)
+                
+                // 5. Draw the right foot / lower-right block of 't'
+                val y_foot_top = yCrossBottom + gap_y
+                drawSlantedRoundRect(x_foot_left, x_foot_right, y_foot_top, yBaseline, T * 0.18f, logoBrush)
+                
+                // 6. Draw letter 'i2' stem
+                drawSlantedRoundRect(x_i2, x_i2 + S_w, yXHeight, yBaseline, T * 0.18f, logoBrush)
+                
+                // 7. Draw letter 'o' (outer body)
+                drawSlantedRoundRect(x_o_l, x_o_r + S_w, yXHeight, yBaseline, T * 0.35f, logoBrush)
+                
+                // 8. Draw the top bar (floating above second i and o, extending past the rightmost edge of o)
+                val xTopBarEnd = x_o_r + S_w + T * 0.60f
+                drawSlantedRoundRect(x_i2, xTopBarEnd, yTopAscender, yDotBottom, T * 0.18f, logoBrush)
+                
+                // 11. Clear the inner cutout of 'o' as a perfectly closed slanted capsule
+                val r_o = T * 0.22f
+                val yOInnerTop = yXHeight + S_w * 0.75f
+                val yOInnerBottom = yBaseline - S_w * 0.75f
+                val xOInnerLeft = x_o_l + S_w
+                val xOInnerRight = x_o_r
+                
+                val pathOInner = Path().apply {
+                    val r = r_o.coerceAtMost((xOInnerRight - xOInnerLeft) / 2f).coerceAtMost((yOInnerBottom - yOInnerTop) / 2f)
+                    moveTo(slantedX(xOInnerLeft + r, yOInnerTop), yOInnerTop)
+                    lineTo(slantedX(xOInnerRight - r, yOInnerTop), yOInnerTop)
+                    quadraticTo(slantedX(xOInnerRight, yOInnerTop), yOInnerTop, slantedX(xOInnerRight, yOInnerTop + r), yOInnerTop + r)
+                    lineTo(slantedX(xOInnerRight, yOInnerBottom - r), yOInnerBottom - r)
+                    quadraticTo(slantedX(xOInnerRight, yOInnerBottom), yOInnerBottom, slantedX(xOInnerRight - r, yOInnerBottom), yOInnerBottom)
+                    lineTo(slantedX(xOInnerLeft + r, yOInnerBottom), yOInnerBottom)
+                    quadraticTo(slantedX(xOInnerLeft, yOInnerBottom), yOInnerBottom, slantedX(xOInnerLeft, yOInnerBottom - r), yOInnerBottom - r)
+                    lineTo(slantedX(xOInnerLeft, yOInnerTop + r), yOInnerTop + r)
+                    quadraticTo(slantedX(xOInnerLeft, yOInnerTop), yOInnerTop, slantedX(xOInnerLeft + r, yOInnerTop), yOInnerTop)
                     close()
                 }
                 drawPath(
-                    path = pathCutout,
-                    color = Color.Transparent,
-                    style = Fill,
-                    blendMode = BlendMode.Clear
-                )
-                
-                // 4. o - Draw outer solid body shape
-                val pathOSolid = Path().apply {
-                    moveTo(slantedX(x_o_l, yBaseline), yBaseline)
-                    lineTo(slantedX(x_o_l, yXHeight), yXHeight)
-                    lineTo(slantedX(x_o_l + S_w, yXHeight), yXHeight)
-                    lineTo(slantedX(x_o_r, yXHeight), yXHeight)
-                    lineTo(slantedX(x_o_r, yTopAscender), yTopAscender)
-                    lineTo(slantedX(x_o_r + S_w, yTopAscender), yTopAscender)
-                    lineTo(slantedX(x_o_r + S_w, yBaseline), yBaseline)
-                    close()
-                }
-                drawPath(path = pathOSolid, color = primaryColor, style = Fill)
-                
-                // 5. top bar - Draw the top ligature bar starting above second i and covering o
-                val pathTopBar = Path().apply {
-                    moveTo(slantedX(x_i2, yTopAscender), yTopAscender)
-                    lineTo(slantedX(x_o_r + S_w, yTopAscender), yTopAscender)
-                    lineTo(slantedX(x_o_r + S_w, yDotBottom), yDotBottom)
-                    lineTo(slantedX(x_i2, yDotBottom), yDotBottom)
-                    close()
-                }
-                drawPath(path = pathTopBar, color = primaryColor, style = Fill)
-                
-                // 6. Clear the horizontal channel above the second i stem that flows into o
-                val pathChannel = Path().apply {
-                    moveTo(slantedX(x_i2, yDotBottom), yDotBottom)
-                    lineTo(slantedX(x_o_r, yDotBottom), yDotBottom)
-                    lineTo(slantedX(x_o_r, yXHeight), yXHeight)
-                    lineTo(slantedX(x_i2, yXHeight), yXHeight)
-                    close()
-                }
-                drawPath(
-                    path = pathChannel,
-                    color = Color.Transparent,
-                    style = Fill,
-                    blendMode = BlendMode.Clear
-                )
-                
-                // 7. Clear the lower inner cutout of o with elegant rounded bottom corners
-                val yOInnerBottom = yBaseline - S_w * 0.70f
-                val r_o = T * 0.15f
-                val pathOInnerRounded = Path().apply {
-                    moveTo(slantedX(x_o_l + S_w, yXHeight), yXHeight)
-                    lineTo(slantedX(x_o_r, yXHeight), yXHeight)
-                    lineTo(slantedX(x_o_r, yOInnerBottom - r_o), yOInnerBottom - r_o)
-                    quadraticTo(
-                        slantedX(x_o_r, yOInnerBottom), yOInnerBottom,
-                        slantedX(x_o_r - r_o, yOInnerBottom), yOInnerBottom
-                    )
-                    lineTo(slantedX(x_o_l + S_w + r_o, yOInnerBottom), yOInnerBottom)
-                    quadraticTo(
-                        slantedX(x_o_l + S_w, yOInnerBottom), yOInnerBottom,
-                        slantedX(x_o_l + S_w, yOInnerBottom - r_o), yOInnerBottom - r_o
-                    )
-                    close()
-                }
-                drawPath(
-                    path = pathOInnerRounded,
+                    path = pathOInner,
                     color = Color.Transparent,
                     style = Fill,
                     blendMode = BlendMode.Clear
@@ -618,15 +735,29 @@ fun LitioBrandLogo(
             
             Spacer(modifier = Modifier.height((fontSize * 0.05f).dp))
             
-            Text(
-                text = "E N E R G Y",
-                fontSize = (fontSize * 0.38f).sp,
-                fontWeight = FontWeight.SemiBold,
-                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                color = subColor,
-                letterSpacing = (fontSize * 0.16f).sp,
-                modifier = Modifier.padding(start = (fontSize * 0.08f).dp)
-            )
+            val paddingDp = wordmarkWidth * 0.02f
+            val shiftDp = wordmarkHeight * 0.33f
+            val wBaseDp = wordmarkWidth - shiftDp - (paddingDp * 2)
+            val energyWidth = wBaseDp * (14.55f / 14.65f)
+            val energyStart = paddingDp
+            
+            Row(
+                modifier = Modifier
+                    .padding(start = energyStart)
+                    .width(energyWidth),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                listOf("E", "N", "E", "R", "G", "Y").forEach { letter ->
+                    Text(
+                        text = letter,
+                        fontSize = (fontSize * 0.45f).sp,
+                        fontWeight = FontWeight.Black,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                        color = subColor
+                    )
+                }
+            }
         }
         
         if (showSlogan) {
@@ -643,14 +774,14 @@ fun LitioBrandLogo(
                     text = "MOVIENDO EL FUTURO",
                     fontSize = (fontSize * 0.45f).sp,
                     fontWeight = FontWeight.Black,
-                    color = MaterialTheme.colorScheme.secondary,
+                    color = sloganColor,
                     letterSpacing = 0.5.sp
                 )
                 Text(
                     text = "SERVICIO TECNICO",
                     fontSize = (fontSize * 0.35f).sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    color = sloganSubColor,
                     letterSpacing = 0.5.sp
                 )
             }
@@ -660,9 +791,11 @@ fun LitioBrandLogo(
 
 @Composable
 fun AppHeader(
-    isAdminMode: Boolean,
+    viewModel: LitioViewModel,
     onToggleMode: () -> Unit
 ) {
+    val isAdminMode = viewModel.isAdminMode
+
     Surface(
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 8.dp,
@@ -672,14 +805,14 @@ fun AppHeader(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Brand Logo & Title using our beautiful vector representation
+            // Brand Logo
             LitioBrandLogo(
-                showSlogan = true,
-                fontSize = 17f,
+                showSlogan = false,
+                fontSize = 20f,
                 primaryColor = MaterialTheme.colorScheme.primary,
                 subColor = MaterialTheme.colorScheme.onSurface
             )
@@ -691,11 +824,11 @@ fun AppHeader(
                     .background(MaterialTheme.colorScheme.background)
                     .border(
                         width = 1.dp,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                        color = if (isAdminMode) MaterialTheme.colorScheme.tertiary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
                         shape = RoundedCornerShape(20.dp)
                     )
                     .clickable { onToggleMode() }
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
                     .testTag("mode_toggle")
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -703,11 +836,11 @@ fun AppHeader(
                         imageVector = if (isAdminMode) Icons.Default.AdminPanelSettings else Icons.Default.Person,
                         contentDescription = "Mode Icon",
                         tint = if (isAdminMode) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (isAdminMode) "Técnico/Admin ⚡" else "Cliente 👤",
+                        text = if (isAdminMode) "Admin ⚡" else "Cliente 👤",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (isAdminMode) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary
@@ -730,6 +863,47 @@ fun ClientWelcomeScreen(viewModel: LitioViewModel) {
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Prominent highlighted Title: SERVICIO TÉCNICO
+        item {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                Color.Transparent
+                            )
+                        ),
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.Start
+            ) {
+                Text(
+                    text = "SERVICIO TÉCNICO",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Black,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    letterSpacing = 0.5.sp,
+                    lineHeight = 28.sp,
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Mantenimiento, diagnóstico y reparación especializada de vehículos eléctricos con la mejor tecnología.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
+                    lineHeight = 18.sp
+                )
+            }
+        }
+
         // Hero Image Card
         item {
             Card(
@@ -880,66 +1054,54 @@ fun ClientWelcomeScreen(viewModel: LitioViewModel) {
                 Card(
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Infinite floating/bobbing and wobble animation for LitioBot mascot
-                            val infiniteTransition = rememberInfiniteTransition(label = "bot_header_anim")
-                            val floatAnim by infiniteTransition.animateFloat(
-                                initialValue = -3f,
-                                targetValue = 3f,
+                            // Elegant high-tech pulsing border animation for Litio AI module
+                            val infiniteTransition = rememberInfiniteTransition(label = "ai_pulse_anim")
+                            val pulseAlpha by infiniteTransition.animateFloat(
+                                initialValue = 0.25f,
+                                targetValue = 0.75f,
                                 animationSpec = infiniteRepeatable(
-                                    animation = tween(durationMillis = 1400, easing = FastOutSlowInEasing),
+                                    animation = tween(durationMillis = 1800, easing = FastOutSlowInEasing),
                                     repeatMode = RepeatMode.Reverse
                                 ),
-                                label = "float"
-                            )
-                            val rotateAnim by infiniteTransition.animateFloat(
-                                initialValue = -6f,
-                                targetValue = 6f,
-                                animationSpec = infiniteRepeatable(
-                                    animation = tween(durationMillis = 1000, easing = FastOutSlowInEasing),
-                                    repeatMode = RepeatMode.Reverse
-                                ),
-                                label = "rotate"
+                                label = "pulse"
                             )
 
                             Box(
                                 modifier = Modifier
                                     .size(48.dp)
-                                    .graphicsLayer(
-                                        translationY = floatAnim,
-                                        rotationZ = rotateAnim
-                                    )
-                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape)
-                                    .border(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), CircleShape),
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f), CircleShape)
+                                    .border(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = pulseAlpha), CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.img_litiobot),
-                                    contentDescription = "LitioBot",
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .clip(CircleShape),
-                                    contentScale = ContentScale.Crop
+                                Icon(
+                                    imageVector = Icons.Default.Build,
+                                    contentDescription = "Litio AI",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
                                 )
                             }
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "LitioBot - Soporte y Diagnóstico ⚡",
-                                    fontSize = 14.sp,
+                                    text = "Asistente de Diagnóstico Inteligente (Litio AI) ⚡",
+                                    fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "Aprende sobre errores y fallas de tu vehículo",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    text = "Análisis técnico de su vehículo eléctrico en tiempo real",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.88f)
                                 )
                             }
                         }
@@ -1529,56 +1691,61 @@ fun ClientDashboard(
 ) {
     val client = viewModel.trackedClient ?: return
     val listState = rememberLazyListState()
-    var customRepairQuery by remember { mutableStateOf("") }
+    val coroutineScope = rememberCoroutineScope()
 
-    LazyColumn(
-        state = listState,
-        modifier = Modifier
-            .fillMaxSize()
-            .testTag("client_dashboard")
-            .imePadding(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Welcome and Logout Header
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "Bienvenido, ${client.name}",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Text(
-                        text = "Ficha de Servicio Nº ${client.id}",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                    )
-                }
-                
-                OutlinedButton(
-                    onClick = { viewModel.logoutClient() },
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                    modifier = Modifier.testTag("logout_button")
+    val trackedMessages by viewModel.trackedClientChatMessages.collectAsState()
+    val latestTechMessage = trackedMessages.lastOrNull { it.senderRole == "TECHNICIAN" }
+    val unreadCount = trackedMessages.count { it.senderRole == "TECHNICIAN" && it.timestamp > viewModel.lastReadVehicleChatTimestamp }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag("client_dashboard")
+                .imePadding(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Welcome and Logout Header
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.ExitToApp, null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Salir", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Column {
+                        Text(
+                            text = "Bienvenido, ${client.name}",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = "Ficha de Servicio Nº ${client.id}",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                        )
+                    }
+                    
+                    OutlinedButton(
+                        onClick = { viewModel.logoutClient() },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier.testTag("logout_button")
+                    ) {
+                        Icon(Icons.Default.ExitToApp, null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Salir", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
-        }
 
-        // Repair Progress Visualizer Card
-        item {
-            ServiceProgressCard(client = client)
-        }
+            // Repair Progress Visualizer Card
+            item {
+                ServiceProgressCard(client = client)
+            }
 
         // Details Grid (Cost, Delivery, Serial)
         item {
@@ -1715,72 +1882,66 @@ fun ClientDashboard(
             }
         }
 
-        // WhatsApp Business Quick Contact Row
+        // Persistent In-App Chat with Technician & Conversation History
         item {
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF075E54).copy(alpha = 0.12f)),
-                border = BorderStroke(1.dp, Color(0xFF25D366).copy(alpha = 0.3f)),
-                modifier = Modifier.fillMaxWidth()
+            VehicleStatusChatCard(
+                client = client,
+                viewModel = viewModel
+            )
+        }
+    }
+
+    // Floating Chat Button with Unread Badge (Only shown when unreadCount > 0, disappears on press)
+    if (unreadCount > 0) {
+        FloatingActionButton(
+            onClick = {
+                viewModel.markVehicleChatAsRead()
+                coroutineScope.launch {
+                    listState.animateScrollToItem(5)
+                }
+            },
+            containerColor = Color(0xFFE53935),
+            contentColor = Color.White,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp)
+                .testTag("client_floating_chat_fab")
+        ) {
+            BadgedBox(
+                badge = {
+                    Badge(
+                        containerColor = Color.White,
+                        contentColor = Color(0xFFE53935)
+                    ) {
+                        Text(
+                            text = unreadCount.toString(),
+                            fontWeight = FontWeight.Black,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(horizontal = 2.dp)
+                        )
+                    }
+                }
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "WhatsApp Business Técnico ⚡",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF25D366)
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Envía tu consulta técnica sobre el avance de tu scooter directamente al WhatsApp de Litio Energy.",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f),
-                                lineHeight = 15.sp
-                            )
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    OutlinedTextField(
-                        value = customRepairQuery,
-                        onValueChange = { customRepairQuery = it },
-                        label = { Text("Escribe tu duda o consulta sobre tu scooter...", fontSize = 12.sp) },
-                        placeholder = { Text("Ej: ¿Tienen listo el diagnóstico del motor?", fontSize = 12.sp) },
-                        leadingIcon = { Icon(Icons.Default.Message, null, modifier = Modifier.size(18.dp), tint = Color(0xFF25D366)) },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF25D366),
-                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
-                            focusedLabelColor = Color(0xFF25D366)
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
-                        maxLines = 3
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Chat,
+                        contentDescription = "Chat Técnico",
+                        modifier = Modifier.size(20.dp)
                     )
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    Button(
-                        onClick = { onOpenUrl(viewModel.getWhatsAppIntentUrl(customRepairQuery)) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("whatsapp_button")
-                    ) {
-                        Icon(Icons.Default.Share, null, tint = Color.Black, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Enviar consulta por WhatsApp", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Responder",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
                 }
             }
         }
     }
+}
 }
 
 @Composable
@@ -1993,7 +2154,7 @@ fun ChatWindow(viewModel: LitioViewModel) {
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "LitioBot está escribiendo...",
+                                text = "Litio AI está procesando...",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
@@ -2092,7 +2253,7 @@ fun ChatBubble(message: ChatMessage) {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
                 if (!message.isUser) {
                     Text(
-                        text = "LitioBot ⚡",
+                        text = "Litio AI ⚡",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.primary,
@@ -2120,6 +2281,46 @@ fun AdminDashboard(viewModel: LitioViewModel) {
             .testTag("admin_dashboard")
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
+            // Prominent Highlighted Title for admin panel
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .background(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f),
+                                Color.Transparent
+                            )
+                        ),
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.25f),
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.Start
+            ) {
+                Text(
+                    text = "PANEL TÉCNICO",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Black,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    letterSpacing = 0.5.sp,
+                    lineHeight = 28.sp,
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Administración, gestión de órdenes de trabajo y control de calidad.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                    lineHeight = 16.sp
+                )
+            }
+
             // Stats Panel
             AdminStatsPanel(clients = clients)
 
@@ -2181,12 +2382,16 @@ fun AdminDashboard(viewModel: LitioViewModel) {
                     items(clients) { client ->
                         AdminClientCard(
                             client = client,
+                            viewModel = viewModel,
                             onEdit = {
                                 viewModel.clientBeingEdited = client
                                 viewModel.isEditingClientDialogVisible = true
                             },
                             onDelete = { viewModel.deleteClient(client) },
-                            onSync = { viewModel.syncToGoogleSheets(client) }
+                            onSync = { viewModel.syncToGoogleSheets(client) },
+                            onOpenChat = {
+                                viewModel.clientForChatDialog = client
+                            }
                         )
                     }
                 }
@@ -2208,15 +2413,24 @@ fun AdminDashboard(viewModel: LitioViewModel) {
         }
 
         // Dialogs
+        if (viewModel.clientForChatDialog != null) {
+            TechnicianClientChatDialog(
+                client = viewModel.clientForChatDialog!!,
+                viewModel = viewModel,
+                onDismiss = { viewModel.clientForChatDialog = null }
+            )
+        }
+
         if (viewModel.isEditingClientDialogVisible && viewModel.clientBeingEdited != null) {
             EditClientDialog(
                 client = viewModel.clientBeingEdited!!,
+                viewModel = viewModel,
                 onDismiss = { 
                     viewModel.isEditingClientDialogVisible = false
                     viewModel.clientBeingEdited = null
                 },
-                onSave = { updatedClient ->
-                    viewModel.saveClientChanges(updatedClient)
+                onSave = { updatedClient, directMsg ->
+                    viewModel.saveClientChanges(updatedClient, directMsg)
                     viewModel.isEditingClientDialogVisible = false
                     viewModel.clientBeingEdited = null
                 }
@@ -2551,8 +2765,41 @@ fun AdminGoogleSheetsConfigRow(
                                        "    if (s.getLastRow() === 0) {\n" +
                                        "      s.appendRow(['ID', 'Fecha', 'Nombre', 'DNI', 'Celular', 'Email', 'Tipo', 'Marca', 'Modelo', 'Nº Serie', 'Falla', 'Estado', 'Progreso', 'Costo', 'Fecha Entrega', 'Sede', 'Notas']);\n" +
                                        "    }\n" +
-                                       "    s.appendRow([d.id, new Date().toLocaleString(), d.name, d.dni || '', d.phone, d.email, d.vehicleType, d.vehicleBrand, d.vehicleModel, d.vehicleSerialNumber, d.problemDescription, d.status, d.progress, d.estimatedCost, d.estimatedCompletionDate, d.sede || '', d.technicianNotes]);\n" +
-                                       "    return ContentService.createTextOutput(JSON.stringify({status:'success', message:'Sincronizado en: ' + sheetName})).setMimeType(ContentService.MimeType.JSON);\n" +
+                                       "    // Buscar ID existente en Columna A\n" +
+                                       "    var data = s.getDataRange().getValues();\n" +
+                                       "    var rowIndex = -1;\n" +
+                                       "    var searchId = d.id.toString();\n" +
+                                       "    for (var i = 1; i < data.length; i++) {\n" +
+                                       "      if (data[i][0].toString() === searchId) {\n" +
+                                       "        rowIndex = i + 1;\n" +
+                                       "        break;\n" +
+                                       "      }\n" +
+                                       "    }\n" +
+                                       "    if (rowIndex > -1) {\n" +
+                                       "      // El cliente ya existe: Actualizar campos excepto 'Fecha' (Columna 2) para mantenerla permanente\n" +
+                                       "      s.getRange(rowIndex, 1).setValue(d.id);\n" +
+                                       "      s.getRange(rowIndex, 3).setValue(d.name);\n" +
+                                       "      s.getRange(rowIndex, 4).setValue(d.dni || '');\n" +
+                                       "      s.getRange(rowIndex, 5).setValue(d.phone);\n" +
+                                       "      s.getRange(rowIndex, 6).setValue(d.email);\n" +
+                                       "      s.getRange(rowIndex, 7).setValue(d.vehicleType);\n" +
+                                       "      s.getRange(rowIndex, 8).setValue(d.vehicleBrand);\n" +
+                                       "      s.getRange(rowIndex, 9).setValue(d.vehicleModel);\n" +
+                                       "      s.getRange(rowIndex, 10).setValue(d.vehicleSerialNumber);\n" +
+                                       "      s.getRange(rowIndex, 11).setValue(d.problemDescription);\n" +
+                                       "      s.getRange(rowIndex, 12).setValue(d.status);\n" +
+                                       "      s.getRange(rowIndex, 13).setValue(d.progress);\n" +
+                                       "      s.getRange(rowIndex, 14).setValue(d.estimatedCost);\n" +
+                                       "      s.getRange(rowIndex, 15).setValue(d.estimatedCompletionDate);\n" +
+                                       "      s.getRange(rowIndex, 16).setValue(d.sede || '');\n" +
+                                       "      s.getRange(rowIndex, 17).setValue(d.technicianNotes);\n" +
+                                       "      return ContentService.createTextOutput(JSON.stringify({status:'success', message:'Actualizado en: ' + sheetName})).setMimeType(ContentService.MimeType.JSON);\n" +
+                                       "    } else {\n" +
+                                       "      // No existe: Insertar nueva fila con la fecha de ingreso\n" +
+                                       "      var rowDate = d.createdAt || new Date().toLocaleString();\n" +
+                                       "      s.appendRow([d.id, rowDate, d.name, d.dni || '', d.phone, d.email, d.vehicleType, d.vehicleBrand, d.vehicleModel, d.vehicleSerialNumber, d.problemDescription, d.status, d.progress, d.estimatedCost, d.estimatedCompletionDate, d.sede || '', d.technicianNotes]);\n" +
+                                       "      return ContentService.createTextOutput(JSON.stringify({status:'success', message:'Sincronizado en: ' + sheetName})).setMimeType(ContentService.MimeType.JSON);\n" +
+                                       "    }\n" +
                                        "  } catch(err) {\n" +
                                        "    return ContentService.createTextOutput(JSON.stringify({status:'error', message:err.toString()})).setMimeType(ContentService.MimeType.JSON);\n" +
                                        "  }\n" +
@@ -2690,10 +2937,15 @@ fun AdminFiltersBox(
 @Composable
 fun AdminClientCard(
     client: ClientEntity,
+    viewModel: LitioViewModel,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    onSync: () -> Unit
+    onSync: () -> Unit,
+    onOpenChat: () -> Unit
 ) {
+    val chatMessages by viewModel.getClientChatMessagesFlow(client.id).collectAsState(initial = emptyList())
+    val clientMsgCount = chatMessages.count { it.senderRole == "CLIENT" }
+
     val (statusColor, vehicleIcon) = when (client.status) {
         "Recibido" -> Pair(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), Icons.Default.Info)
         "Diagnóstico" -> Pair(MaterialTheme.colorScheme.primary, Icons.Default.Search)
@@ -2749,23 +3001,47 @@ fun AdminClientCard(
                     }
                 }
 
-                // Sync / Edit / Delete Buttons
+                // Sync / Chat / Edit / Delete Buttons
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (clientMsgCount > 0) {
+                        Box(
+                            modifier = Modifier
+                                .background(Color(0xFFE53935), RoundedCornerShape(8.dp))
+                                .clickable { onOpenChat() }
+                                .padding(horizontal = 6.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = "💬 $clientMsgCount msg",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                    } else {
+                        IconButton(
+                            onClick = onOpenChat,
+                            modifier = Modifier.size(30.dp).testTag("chat_client_button_${client.id}")
+                        ) {
+                            Icon(Icons.Default.Chat, "Chat Técnico", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                        }
+                    }
+
                     IconButton(
                         onClick = onSync,
-                        modifier = Modifier.size(32.dp).testTag("sync_client_button_${client.id}")
+                        modifier = Modifier.size(30.dp).testTag("sync_client_button_${client.id}")
                     ) {
-                        Icon(Icons.Default.CloudSync, "Sincronizar", tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.CloudSync, "Sincronizar", tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(17.dp))
                     }
                     IconButton(
                         onClick = onEdit,
-                        modifier = Modifier.size(32.dp).testTag("edit_client_button_${client.id}")
+                        modifier = Modifier.size(30.dp).testTag("edit_client_button_${client.id}")
                     ) {
                         Icon(Icons.Default.Edit, "Editar", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                     }
                     IconButton(
                         onClick = onDelete,
-                        modifier = Modifier.size(32.dp).testTag("delete_client_button_${client.id}")
+                        modifier = Modifier.size(30.dp).testTag("delete_client_button_${client.id}")
                     ) {
                         Icon(Icons.Default.Delete, "Eliminar", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
                     }
@@ -2836,16 +3112,216 @@ fun BorderStroke(width: androidx.compose.ui.unit.Dp, color: Color): androidx.com
 }
 
 @Composable
+fun TechnicianClientChatDialog(
+    client: ClientEntity,
+    viewModel: LitioViewModel,
+    onDismiss: () -> Unit
+) {
+    val messages by viewModel.getClientChatMessagesFlow(client.id).collectAsState(initial = emptyList())
+    var replyText by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Chat,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Chat Directo - ${client.name}",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "${client.vehicleType} ${client.vehicleBrand} | DNI: ${client.dni.ifBlank { "N/A" }} | Cel: ${client.phone}",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            }
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Messages List
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(260.dp)
+                        .background(
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.7f),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                        .padding(8.dp)
+                ) {
+                    if (messages.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Sin mensajes registrados aún...",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                        }
+                    } else {
+                        val scrollState = rememberLazyListState()
+                        LaunchedEffect(messages.size) {
+                            if (messages.isNotEmpty()) {
+                                scrollState.animateScrollToItem(messages.size - 1)
+                            }
+                        }
+
+                        LazyColumn(
+                            state = scrollState,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            items(messages) { msg ->
+                                val isClient = msg.senderRole == "CLIENT"
+                                val timeStr = try {
+                                    java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date(msg.timestamp))
+                                } catch (e: Exception) {
+                                    ""
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = if (isClient) Arrangement.Start else Arrangement.End
+                                ) {
+                                    Card(
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (isClient) {
+                                                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
+                                            } else {
+                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                                            }
+                                        ),
+                                        border = BorderStroke(
+                                            0.5.dp,
+                                            if (isClient) MaterialTheme.colorScheme.error.copy(alpha = 0.6f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                                        ),
+                                        modifier = Modifier.widthIn(max = 240.dp)
+                                    ) {
+                                        Column(modifier = Modifier.padding(8.dp)) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text(
+                                                    text = if (isClient) "📩 CLIENTE" else "⚡ TÉCNICO",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isClient) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = timeStr,
+                                                    fontSize = 8.sp,
+                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(3.dp))
+                                            Text(
+                                                text = msg.message,
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                lineHeight = 15.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Reply TextField
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = replyText,
+                        onValueChange = { replyText = it },
+                        placeholder = { Text("Respuesta para el cliente...", fontSize = 11.sp) },
+                        maxLines = 3,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("admin_chat_dialog_reply_input")
+                    )
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    IconButton(
+                        onClick = {
+                            if (replyText.isNotBlank()) {
+                                viewModel.sendAdminChatMessage(client.id, replyText)
+                                replyText = ""
+                            }
+                        },
+                        enabled = replyText.isNotBlank(),
+                        modifier = Modifier
+                            .size(42.dp)
+                            .background(
+                                if (replyText.isNotBlank()) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.3f),
+                                CircleShape
+                            )
+                            .testTag("admin_chat_dialog_send_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Send,
+                            contentDescription = "Enviar",
+                            tint = Color.Black,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cerrar", fontWeight = FontWeight.Bold)
+            }
+        }
+    )
+}
+
+@Composable
 fun EditClientDialog(
     client: ClientEntity,
+    viewModel: LitioViewModel,
     onDismiss: () -> Unit,
-    onSave: (ClientEntity) -> Unit
+    onSave: (ClientEntity, String) -> Unit
 ) {
+    val messages by viewModel.getClientChatMessagesFlow(client.id).collectAsState(initial = emptyList())
     var status by remember { mutableStateOf(client.status) }
     var progress by remember { mutableStateOf(client.progress.toFloat()) }
     var notes by remember { mutableStateOf(client.technicianNotes) }
     var costText by remember { mutableStateOf(client.estimatedCost.toString()) }
     var deliveryDate by remember { mutableStateOf(client.estimatedCompletionDate) }
+    var directMessage by remember { mutableStateOf("") }
 
     val states = listOf("Recibido", "Diagnóstico", "En Reparación", "Control de Calidad", "Listo para Retirar")
 
@@ -2965,6 +3441,71 @@ fun EditClientDialog(
                     )
                 }
 
+                // Client Chat History Preview
+                item {
+                    Text(
+                        text = "💬 Historial de Mensajes con el Cliente:",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.5f),
+                                RoundedCornerShape(8.dp)
+                            )
+                            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                            .padding(8.dp)
+                    ) {
+                        if (messages.isEmpty()) {
+                            Text(
+                                text = "Sin mensajes registrados aún con el cliente.",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                messages.takeLast(5).forEach { msg ->
+                                    val isClient = msg.senderRole == "CLIENT"
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = if (isClient) "📩 Cliente: " else "⚡ Técnico: ",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isClient) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                                        )
+                                        Text(
+                                            text = msg.message,
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Direct Message to Client Chat
+                item {
+                    OutlinedTextField(
+                        value = directMessage,
+                        onValueChange = { directMessage = it },
+                        label = { Text("Enviar mensaje al Chat del Cliente (opcional)") },
+                        placeholder = { Text("Ej: Ya desmontamos la batería para probar las celdas...") },
+                        maxLines = 3,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary
+                        ),
+                        modifier = Modifier.fillMaxWidth().testTag("edit_direct_msg_input")
+                    )
+                }
+
                 // Save buttons
                 item {
                     Spacer(modifier = Modifier.height(10.dp))
@@ -2978,7 +3519,7 @@ fun EditClientDialog(
                                 estimatedCost = costVal,
                                 estimatedCompletionDate = deliveryDate
                             )
-                            onSave(updated)
+                            onSave(updated, directMessage)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2986,7 +3527,7 @@ fun EditClientDialog(
                             .testTag("save_client_changes_button"),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
-                        Text("Guardar Cambios", color = Color.Black, fontWeight = FontWeight.Bold)
+                        Text("Guardar Cambios y Notificar en Chat", color = Color.Black, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -3838,4 +4379,279 @@ data class BenefitItemData(
     val title: String,
     val desc: String
 )
+
+@Composable
+fun AppSplashScreen(onDismiss: () -> Unit) {
+    // Elegant scale and alpha animation for the centered isotype logo
+    val scaleAnim = remember { Animatable(0.7f) }
+    val alphaAnim = remember { Animatable(0f) }
+    
+    LaunchedEffect(Unit) {
+        // Run animations in parallel
+        launch {
+            scaleAnim.animateTo(
+                targetValue = 1.0f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessLow
+                )
+            )
+        }
+        launch {
+            alphaAnim.animateTo(
+                targetValue = 1.0f,
+                animationSpec = tween(durationMillis = 1000, easing = LinearOutSlowInEasing)
+            )
+        }
+        delay(1800) // Beautiful 1.8s branding window
+        onDismiss()
+    }
+    
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF6BDADB)), // Absolute Celeste background
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.graphicsLayer(
+                scaleX = scaleAnim.value,
+                scaleY = scaleAnim.value,
+                alpha = alphaAnim.value
+            )
+        ) {
+            // Isotype Logo (LitioBrandMark) in high-contrast dark corporate color
+            LitioBrandLogo(
+                fontSize = 28f,
+                primaryColor = Color(0xFF0B1220), // Dark Navy
+                subColor = Color(0xFF0B1220),     // Dark Navy
+                showSlogan = true,
+                sloganColor = Color(0xFF0B1220),
+                sloganSubColor = Color(0xFF0B1220).copy(alpha = 0.7f)
+            )
+        }
+    }
+}
+
+@Composable
+fun VehicleStatusChatCard(
+    client: ClientEntity,
+    viewModel: LitioViewModel
+) {
+    val messages by viewModel.trackedClientChatMessages.collectAsState()
+    val isSending = viewModel.isVehicleChatSending
+    val unreadCount = messages.count { it.senderRole == "TECHNICIAN" && it.timestamp > viewModel.lastReadVehicleChatTimestamp }
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { viewModel.markVehicleChatAsRead() }
+            .testTag("vehicle_status_chat_card")
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Header
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Chat,
+                            contentDescription = "Chat Técnico",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "Chat Técnico - Cliente ⚡",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Sede ${client.sede} • Historial permanente",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Messages Container
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 160.dp, max = 280.dp)
+                    .background(
+                        MaterialTheme.colorScheme.background.copy(alpha = 0.6f),
+                        RoundedCornerShape(12.dp)
+                    )
+                    .padding(10.dp)
+            ) {
+                if (messages.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Inicia una conversación con el Servicio Técnico...",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                    }
+                } else {
+                    val scrollState = rememberLazyListState()
+                    LaunchedEffect(messages.size) {
+                        if (messages.isNotEmpty()) {
+                            scrollState.animateScrollToItem(messages.size - 1)
+                        }
+                    }
+
+                    LazyColumn(
+                        state = scrollState,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(messages) { msg ->
+                            val isClient = msg.senderRole == "CLIENT"
+                            val timeStr = try {
+                                java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date(msg.timestamp))
+                            } catch (e: Exception) {
+                                ""
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = if (isClient) Arrangement.End else Arrangement.Start
+                            ) {
+                                Card(
+                                    shape = RoundedCornerShape(
+                                        topStart = 12.dp,
+                                        topEnd = 12.dp,
+                                        bottomStart = if (isClient) 12.dp else 2.dp,
+                                        bottomEnd = if (isClient) 2.dp else 12.dp
+                                    ),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (isClient) {
+                                            MaterialTheme.colorScheme.surfaceVariant
+                                        } else {
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                                        }
+                                    ),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (isClient) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f) else MaterialTheme.colorScheme.primary
+                                    ),
+                                    modifier = Modifier.widthIn(max = 260.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                text = if (isClient) "👤 Tú" else "⚡ ${msg.senderName}",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isClient) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f) else MaterialTheme.colorScheme.primary
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = timeStr,
+                                                fontSize = 9.sp,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = msg.message,
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            lineHeight = 16.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Message Input Row
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = viewModel.vehicleChatInputText,
+                    onValueChange = { 
+                        viewModel.vehicleChatInputText = it
+                        viewModel.markVehicleChatAsRead()
+                    },
+                    placeholder = { Text("Escribe una consulta para el técnico...", fontSize = 12.sp) },
+                    singleLine = false,
+                    maxLines = 3,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("vehicle_chat_input")
+                )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                IconButton(
+                    onClick = { viewModel.sendVehicleChatMessage() },
+                    enabled = !isSending && viewModel.vehicleChatInputText.isNotBlank(),
+                    modifier = Modifier
+                        .size(46.dp)
+                        .background(
+                            if (viewModel.vehicleChatInputText.isNotBlank()) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.3f),
+                            CircleShape
+                        )
+                        .testTag("vehicle_chat_send_button")
+                ) {
+                    if (isSending) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = Color.Black,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Send,
+                            contentDescription = "Enviar",
+                            tint = Color.Black,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
 

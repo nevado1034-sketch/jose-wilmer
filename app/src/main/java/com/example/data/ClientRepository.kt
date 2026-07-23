@@ -2,8 +2,23 @@ package com.example.data
 
 import kotlinx.coroutines.flow.Flow
 
-class ClientRepository(private val clientDao: ClientDao) {
+class ClientRepository(
+    private val clientDao: ClientDao,
+    private val vehicleChatDao: VehicleChatDao
+) {
     val allClients: Flow<List<ClientEntity>> = clientDao.getAllClients()
+
+    fun getVehicleChatMessagesFlow(clientId: Int): Flow<List<VehicleChatMessageEntity>> {
+        return vehicleChatDao.getMessagesForClientFlow(clientId)
+    }
+
+    suspend fun getVehicleChatMessages(clientId: Int): List<VehicleChatMessageEntity> {
+        return vehicleChatDao.getMessagesForClient(clientId)
+    }
+
+    suspend fun insertVehicleChatMessage(message: VehicleChatMessageEntity): Long {
+        return vehicleChatDao.insertMessage(message)
+    }
 
     suspend fun getClientById(id: Int): ClientEntity? {
         return clientDao.getClientById(id)

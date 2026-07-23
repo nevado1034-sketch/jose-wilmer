@@ -34,9 +34,14 @@ object GoogleSheetsService {
         }
 
         try {
+            // Format the client creation date for Google Sheets entry
+            val sdf = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm:ss", java.util.Locale.getDefault())
+            val formattedDate = sdf.format(java.util.Date(clientEntity.createdAt))
+
             // Build the JSON payload manually for total safety and speed
             val jsonObject = JSONObject().apply {
                 put("id", clientEntity.id)
+                put("createdAt", formattedDate)
                 put("name", clientEntity.name)
                 put("phone", clientEntity.phone)
                 put("email", clientEntity.email)

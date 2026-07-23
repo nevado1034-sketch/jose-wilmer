@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar" />
+    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar">
+        <!-- Background color of the splash screen (Celeste #6BDADB) -->
+        <item name="android:windowSplashScreenBackground">#6BDADB</item>
+        <!-- Transparent icon to avoid double logo/isotype flash -->
+        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+    </style>
 </resources>

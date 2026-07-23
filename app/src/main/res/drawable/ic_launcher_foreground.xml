@@ -1,8 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item
-        android:width="66dp"
-        android:height="66dp"
-        android:drawable="@drawable/ic_litio_logo_vector"
-        android:gravity="center" />
-</layer-list>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Perfectly scaled and centered adaptive launcher icon foreground within the 72dp safe zone circle -->
+    <group
+        android:scaleX="0.66"
+        android:scaleY="0.66"
+        android:translateX="19.5"
+        android:translateY="19.5">
+
+        <!-- 1. Left/Bottom Segment of Slanted Battery Outline with Clean Gaps -->
+        <path
+            android:pathData="M 34,22 L 19.59,22 L 4.41,68 L 18,68"
+            android:strokeWidth="7.5"
+            android:strokeColor="#6BDADB"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+
+        <!-- 2. Right/Top Segment of Slanted Battery Outline with Clean Gaps (including cap) -->
+        <path
+            android:pathData="M 44,68 L 62.41,68 L 66.7,55 L 78.7,55 L 85.3,35 L 73.3,35 L 77.59,22 L 60,22"
+            android:strokeWidth="7.5"
+            android:strokeColor="#6BDADB"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+
+        <!-- 3. Perfectly Centered, Slanted Signature Turquoise Lightning Bolt -->
+        <path
+            android:pathData="M 43.87,6 L 63.87,6 L 52.65,40 L 69.65,40 L 17.83,94 L 42.35,50 L 29.35,50 Z"
+            android:fillColor="#6BDADB" />
+    </group>
+</vector>

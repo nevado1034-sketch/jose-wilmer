@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="100dp"
-    android:height="100dp"
+    android:width="288dp"
+    android:height="288dp"
     android:viewportWidth="100"
     android:viewportHeight="100">
 
@@ -9,7 +9,7 @@
     <path
         android:pathData="M 34,22 L 19.59,22 L 4.41,68 L 18,68"
         android:strokeWidth="7.5"
-        android:strokeColor="#6BDADB"
+        android:strokeColor="#0B1220"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
 
@@ -17,12 +17,12 @@
     <path
         android:pathData="M 44,68 L 62.41,68 L 66.7,55 L 78.7,55 L 85.3,35 L 73.3,35 L 77.59,22 L 60,22"
         android:strokeWidth="7.5"
-        android:strokeColor="#6BDADB"
+        android:strokeColor="#0B1220"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
 
-    <!-- 3. Perfectly Centered, Slanted Signature Turquoise Lightning Bolt -->
+    <!-- 3. Perfectly Centered, Slanted Dark Navy Lightning Bolt -->
     <path
         android:pathData="M 43.87,6 L 63.87,6 L 52.65,40 L 69.65,40 L 17.83,94 L 42.35,50 L 29.35,50 Z"
-        android:fillColor="#6BDADB" />
+        android:fillColor="#0B1220" />
 </vector>

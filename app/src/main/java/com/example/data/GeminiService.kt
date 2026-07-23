@@ -44,12 +44,13 @@ object GeminiService {
             }
 
             val systemInstructionText = """
-                Eres LitioBot, el experto asistente de 'LITIO ENERGY SERVICIO TÉCNICO'.
+                Eres Litio AI, el asistente virtual de diagnóstico y soporte técnico especializado de 'LITIO ENERGY'.
                 
                 REGLA DE ORO DE RESPUESTA DIRECTA:
-                - Sé extremadamente directo, preciso y ve al grano de inmediato. Evita saludos largos, preámbulos decorativos o introducciones innecesarias.
-                - Responde la pregunta del usuario de manera directa en las primeras líneas de tu respuesta.
+                - Sé extremadamente directo, preciso y ve al grano de inmediato. Evita saludos largos, preámbulos de bienvenida informales o introducciones innecesarias.
+                - Responde la pregunta del usuario de manera profesional, seria, técnica y directa en las primeras líneas de tu respuesta.
                 - Entrega la solución, los pasos prácticos o la explicación técnica de forma concisa y estructurada usando viñetas breves.
+                - Mantén un tono formal, profesional, técnico y serio en todo momento. No uses emojis excesivos ni informales, concéntrate en la precisión técnica y de seguridad.
                 
                 NUEVA REGLA CRÍTICA PARA ERRORES ESPECÍFICOS:
                 - Si el usuario te pregunta por un código de error específico (por ejemplo: Error 21, Error 14, Error 15, Error 35, Error 18, Errores 11, 12, 13, etc.), debes enfocarte ÚNICAMENTE en explicar ese error específico de forma breve y directa. No le des una lista de todos los otros errores.
@@ -134,7 +135,7 @@ object GeminiService {
         val query = prompt.lowercase()
         return when {
             query.contains("hola") || query.contains("buen") || query.contains("saludos") || query.contains("saludo") -> {
-                "¡Hola! Qué gusto saludarte. 😊 Bienvenido a **LITIO ENERGY SERVICIO TÉCNICO**. ⚡\n\nSoy **LitioBot**, tu asistente experto y amigo en movilidad eléctrica. Cuéntame, ¿qué problema o ruido presenta tu scooter, bicicleta o moto hoy? Estoy aquí para ayudarte a entender la falla y ver si puedes solucionarlo tú mismo antes de traerlo con nuestros técnicos."
+                "Bienvenido a **LITIO ENERGY**. ⚡\n\nSoy el **Asistente de Diagnóstico Especializado (Litio AI)**. Estoy programado para realizar análisis técnicos, interpretar códigos de error y diagnosticar fallas en sistemas de litio, motores y electrónica de vehículos eléctricos. Por favor, describa detalladamente la anomalía o el código de error que presenta su vehículo para iniciar el diagnóstico."
             }
             query.contains("error 14") || query.contains("err 14") || query.contains("error14") -> {
                 "🔍 **Error 14 (Fallo de Acelerador):**\n\n" +
@@ -347,8 +348,84 @@ object GeminiService {
                 "¡Por supuesto! Solo pulsa el botón verde **'Enviar a WhatsApp'** en la pantalla principal. Esto armará automáticamente un mensaje con tus datos registrados para agendar tu cita y resolver tu caso de forma rápida."
             }
             else -> {
-                "¡Entendido! Me encanta ayudarte. 😊 En **LITIO ENERGY** somos expertos apasionados en dar solución a scooters, bicicletas y motos eléctricas de todas las marcas (Xiaomi, Segway, Dualtron, etc.).\n\nSi estás presentando un problema, cuéntame los detalles para explicarte qué puede ser y qué pasos sencillos puedes probar en casa de forma segura. Y recuerda que si necesitas manos expertas, siempre puedes registrar tu vehículo en esta app o enviarnos un mensaje por WhatsApp para que lo revisemos de inmediato en nuestro taller especializado."
+                "¡Entendido! Me encanta ayudarte. 😊 En **LITIO ENERGY** somos expertos apasionados en dar solución a scooters, bicicletas y motos eléctricas de todas las marcas (Xiaomi, Segway, Dualtron, etc.).\n\nSi estás presentando un problema, cuéntame los detalles para explicarte qué puede ser y qué pasos sencillos puedes probar en casa de forma segura. Y recuerda que si necesitas manos expertas, siempre puedes registrar tu vehículo en esta app para que lo revisemos de inmediato en nuestro taller especializado."
             }
+        }
+    }
+
+    suspend fun getTechnicianChatResponse(
+        userQuery: String,
+        clientEntity: ClientEntity,
+        chatHistory: List<Pair<String, Boolean>>
+    ): String = withContext(Dispatchers.IO) {
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY" || apiKey == "GEMINI_API_KEY") {
+            return@withContext "Hola ${clientEntity.name}, he recibido tu consulta sobre tu ${clientEntity.vehicleType} ${clientEntity.vehicleBrand}. El estado actual es ${clientEntity.status} (${clientEntity.progress}%). Un técnico especializado de la sede ${clientEntity.sede} revisará tu mensaje a la brevedad."
+        }
+
+        try {
+            val historyBuilder = StringBuilder()
+            chatHistory.takeLast(6).forEach { (text, isUser) ->
+                val role = if (isUser) "user" else "model"
+                val safeText = text.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r")
+                historyBuilder.append("""{"role": "$role", "parts": [{"text": "$safeText"}]},""")
+            }
+
+            val systemInstructionText = """
+                Eres el Técnico Especializado de Servicio Técnico Litio Energy asignado a la sede ${clientEntity.sede}.
+                Estás respondiendo directamente al cliente en el CHAT DIRECTO DE LA APLICACIÓN para su vehículo registrado:
+                - Cliente: ${clientEntity.name}
+                - Vehículo: ${clientEntity.vehicleType} ${clientEntity.vehicleBrand} ${clientEntity.vehicleModel}
+                - Serie: ${clientEntity.vehicleSerialNumber}
+                - Falla Reportada: ${clientEntity.problemDescription}
+                - Estado Actual de Reparación: ${clientEntity.status} (${clientEntity.progress}%)
+                - Notas Técnicas Actuales: ${clientEntity.technicianNotes}
+                - Fecha estimada de entrega: ${clientEntity.estimatedCompletionDate}
+                - Costo estimado: S/. ${clientEntity.estimatedCost}
+
+                INSTRUCCIONES:
+                - Responde de manera sumamente atenta, profesional y directa a la consulta específica del cliente.
+                - Refiérete a los datos específicos de su vehículo o reparación cuando sea oportuno.
+                - Firma tus mensajes amablemente como 'Atte. Servicio Técnico Litio Energy (${clientEntity.sede})'.
+                - Mantén un tono técnico pero muy servicial y tranquilizador.
+            """.trimIndent()
+
+            val safeInstruction = systemInstructionText.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r")
+            val safePrompt = userQuery.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r")
+
+            val jsonBody = """
+            {
+              "contents": [
+                ${historyBuilder.toString()}
+                {"role": "user", "parts": [{"text": "$safePrompt"}]}
+              ],
+              "systemInstruction": {
+                "parts": [{"text": "$safeInstruction"}]
+              }
+            }
+            """.trimIndent()
+
+            val request = Request.Builder()
+                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey")
+                .post(jsonBody.toRequestBody(mediaType))
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val responseBody = response.body?.string() ?: ""
+                if (response.isSuccessful) {
+                    val jsonObject = JSONObject(responseBody)
+                    val candidates = jsonObject.getJSONArray("candidates")
+                    val firstCandidate = candidates.getJSONObject(0)
+                    val content = firstCandidate.getJSONObject("content")
+                    val parts = content.getJSONArray("parts")
+                    val firstPart = parts.getJSONObject(0)
+                    firstPart.getString("text")
+                } else {
+                    "Hola ${clientEntity.name}, hemos recibido tu mensaje. Tu ${clientEntity.vehicleBrand} ${clientEntity.vehicleModel} se encuentra en estado '${clientEntity.status}' (${clientEntity.progress}%). Nuestro equipo técnico en ${clientEntity.sede} te atenderá en breve."
+                }
+            }
+        } catch (e: Exception) {
+            "Hola ${clientEntity.name}, hemos registrado tu mensaje en el historial técnico. Tu ${clientEntity.vehicleBrand} está en estado '${clientEntity.status}'. Te informaremos cualquier actualización."
         }
     }
 }

@@ -10,8 +10,10 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.AppDatabase
 import com.example.data.ClientEntity
 import com.example.data.ClientRepository
+import com.example.data.VehicleChatMessageEntity
 import com.example.data.GeminiService
 import com.example.data.GoogleSheetsService
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -119,15 +121,84 @@ class LitioViewModel(application: Application) : AndroidViewModel(application) {
     var isEditingClientDialogVisible by mutableStateOf(false)
     var isAddingClientDialogVisible by mutableStateOf(false)
     var clientBeingEdited by mutableStateOf<ClientEntity?>(null)
+    var clientForChatDialog by mutableStateOf<ClientEntity?>(null)
     
     // Chat states
     val chatMessages = mutableStateListOf<ChatMessage>()
     var chatInputText by mutableStateOf("")
     var isChatLoading by mutableStateOf(false)
 
+    // Vehicle status direct chat states
+    var vehicleChatInputText by mutableStateOf("")
+    var isVehicleChatSending by mutableStateOf(false)
+    val trackedClientChatMessages = MutableStateFlow<List<VehicleChatMessageEntity>>(emptyList())
+    private var vehicleChatJob: kotlinx.coroutines.Job? = null
+    var lastReadVehicleChatTimestamp by mutableStateOf(0L)
+
+    fun markVehicleChatAsRead() {
+        lastReadVehicleChatTimestamp = System.currentTimeMillis()
+        clearNotificationBadge()
+    }
+
+    private fun createNotificationChannel() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            val name = "Litio Chat Notifications"
+            val descriptionText = "Notificaciones de mensajes del servicio técnico Litio Energy"
+            val importance = android.app.NotificationManager.IMPORTANCE_HIGH
+            val channel = android.app.NotificationChannel("litio_chat_channel", name, importance).apply {
+                description = descriptionText
+                setShowBadge(true)
+            }
+            val notificationManager: android.app.NotificationManager =
+                getApplication<Application>().getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun updateNotificationBadge(unreadCount: Int, lastMessage: String?) {
+        try {
+            createNotificationChannel()
+            val notificationManager = getApplication<Application>().getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            if (unreadCount <= 0) {
+                notificationManager.cancel(1001)
+                return
+            }
+            val intent = android.content.Intent(getApplication(), com.example.MainActivity::class.java).apply {
+                flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+            }
+            val pendingIntent = android.app.PendingIntent.getActivity(
+                getApplication(), 0, intent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val builder = androidx.core.app.NotificationCompat.Builder(getApplication(), "litio_chat_channel")
+                .setSmallIcon(android.R.drawable.stat_notify_chat)
+                .setContentTitle("Litio Energy - Servicio Técnico")
+                .setContentText(lastMessage ?: "Tienes $unreadCount mensaje(s) nuevo(s)")
+                .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+                .setNumber(unreadCount)
+                .setBadgeIconType(androidx.core.app.NotificationCompat.BADGE_ICON_SMALL)
+                .setContentIntent(pendingIntent)
+                .setAutoCancel(true)
+
+            notificationManager.notify(1001, builder.build())
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun clearNotificationBadge() {
+        try {
+            val notificationManager = getApplication<Application>().getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            notificationManager.cancel(1001)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     init {
-        val clientDao = AppDatabase.getDatabase(application).clientDao()
-        repository = ClientRepository(clientDao)
+        val db = AppDatabase.getDatabase(application)
+        repository = ClientRepository(db.clientDao(), db.vehicleChatDao())
         
         // Add greeting to chat
         addSystemGreeting()
@@ -140,6 +211,70 @@ class LitioViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+    }
+
+    fun setupVehicleChatObserver(clientId: Int, clientName: String, sede: String, vehicleInfo: String, status: String, progress: Int) {
+        vehicleChatJob?.cancel()
+        vehicleChatJob = viewModelScope.launch {
+            repository.getVehicleChatMessagesFlow(clientId).collect { messages ->
+                if (messages.isEmpty()) {
+                    val welcomeMsg = VehicleChatMessageEntity(
+                        clientId = clientId,
+                        senderRole = "TECHNICIAN",
+                        senderName = "Técnico $sede",
+                        message = "¡Hola $clientName! Bienvenido al Chat Directo de Servicio Técnico de Litio Energy. Tu $vehicleInfo se encuentra en estado '$status' ($progress% de avance). Escribe aquí cualquier consulta o indicación sobre tu vehículo y un especialista técnico te responderá por este mismo medio."
+                    )
+                    repository.insertVehicleChatMessage(welcomeMsg)
+                } else {
+                    trackedClientChatMessages.value = messages
+                    val unread = messages.count { it.senderRole == "TECHNICIAN" && it.timestamp > lastReadVehicleChatTimestamp }
+                    val lastTech = messages.lastOrNull { it.senderRole == "TECHNICIAN" }
+                    if (unread > 0) {
+                        updateNotificationBadge(unread, lastTech?.message)
+                    } else {
+                        clearNotificationBadge()
+                    }
+                }
+            }
+        }
+    }
+
+    fun sendVehicleChatMessage() {
+        val client = trackedClient ?: return
+        val text = vehicleChatInputText.trim()
+        if (text.isBlank() || isVehicleChatSending) return
+
+        vehicleChatInputText = ""
+        isVehicleChatSending = true
+
+        viewModelScope.launch {
+            val userMsg = VehicleChatMessageEntity(
+                clientId = client.id,
+                senderRole = "CLIENT",
+                senderName = client.name,
+                message = text
+            )
+            repository.insertVehicleChatMessage(userMsg)
+            markVehicleChatAsRead()
+            isVehicleChatSending = false
+        }
+    }
+
+    fun sendAdminChatMessage(clientId: Int, adminMessageText: String) {
+        if (adminMessageText.isBlank()) return
+        viewModelScope.launch {
+            val techMsg = VehicleChatMessageEntity(
+                clientId = clientId,
+                senderRole = "TECHNICIAN",
+                senderName = "Técnico Litio Energy",
+                message = adminMessageText.trim()
+            )
+            repository.insertVehicleChatMessage(techMsg)
+        }
+    }
+
+    fun getClientChatMessagesFlow(clientId: Int): Flow<List<VehicleChatMessageEntity>> {
+        return repository.getVehicleChatMessagesFlow(clientId)
     }
 
     // Expose all clients reactively, combining with search queries and status filters
@@ -233,7 +368,7 @@ class LitioViewModel(application: Application) : AndroidViewModel(application) {
         chatMessages.clear()
         chatMessages.add(
             ChatMessage(
-                text = "¡Hola! Soy **LitioBot**, tu experto en micromovilidad eléctrica. ¿Tienes alguna pregunta sobre tu vehículo eléctrico? Cualquier problema solo consúltame para ayudarte. ⚡",
+                text = "Bienvenido al **Asistente de Diagnóstico Especializado (Litio AI)**. Estoy programado para analizar anomalías, interpretar códigos de error, diagnosticar fallas en baterías de litio y motores, y proveer recomendaciones técnicas de alta precisión. ¿Qué síntomas presenta su vehículo hoy? ⚡",
                 isUser = false
             )
         )
@@ -267,6 +402,7 @@ class LitioViewModel(application: Application) : AndroidViewModel(application) {
             val clientWithId = newClient.copy(id = generatedId.toInt())
             trackedClient = clientWithId
             isClientRegistered = true
+            setupVehicleChatObserver(clientWithId.id, clientWithId.name, clientWithId.sede, "${clientWithId.vehicleType} ${clientWithId.vehicleBrand} ${clientWithId.vehicleModel}", clientWithId.status, clientWithId.progress)
             
             syncToGoogleSheets(clientWithId)
             
@@ -304,6 +440,7 @@ class LitioViewModel(application: Application) : AndroidViewModel(application) {
                 trackedClient = client
                 isClientRegistered = true
                 lookupError = null
+                setupVehicleChatObserver(client.id, client.name, client.sede, "${client.vehicleType} ${client.vehicleBrand} ${client.vehicleModel}", client.status, client.progress)
                 
                 // Greeting updated in chat
                 chatMessages.add(
@@ -331,6 +468,7 @@ class LitioViewModel(application: Application) : AndroidViewModel(application) {
                 trackedClient = client
                 isClientRegistered = true
                 lookupError = null
+                setupVehicleChatObserver(client.id, client.name, client.sede, "${client.vehicleType} ${client.vehicleBrand} ${client.vehicleModel}", client.status, client.progress)
                 
                 // Greeting updated in chat
                 chatMessages.add(
@@ -346,13 +484,38 @@ class LitioViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // Save customized client updates (Admin)
-    fun saveClientChanges(client: ClientEntity) {
+    fun saveClientChanges(client: ClientEntity, customMessage: String = "") {
         viewModelScope.launch {
             repository.updateClient(client)
             if (trackedClient?.id == client.id) {
                 trackedClient = client
             }
             syncToGoogleSheets(client)
+
+            // Log technician status update to vehicle chat history
+            val updateTextBuilder = StringBuilder()
+            updateTextBuilder.append("📋 Actualización de Servicio Técnico (${client.sede}):\n")
+            updateTextBuilder.append("• Estado: ${client.status} (${client.progress}%)\n")
+            if (client.estimatedCompletionDate.isNotBlank()) {
+                updateTextBuilder.append("• Fecha Estimada: ${client.estimatedCompletionDate}\n")
+            }
+            if (client.estimatedCost > 0) {
+                updateTextBuilder.append("• Costo Estimado: S/ ${client.estimatedCost}\n")
+            }
+            if (client.technicianNotes.isNotBlank()) {
+                updateTextBuilder.append("• Informe Técnico: ${client.technicianNotes}\n")
+            }
+            if (customMessage.isNotBlank()) {
+                updateTextBuilder.append("\n💬 Mensaje Directo: $customMessage")
+            }
+
+            val updateMsg = VehicleChatMessageEntity(
+                clientId = client.id,
+                senderRole = "TECHNICIAN",
+                senderName = "Técnico ${client.sede}",
+                message = updateTextBuilder.toString().trim()
+            )
+            repository.insertVehicleChatMessage(updateMsg)
         }
     }
 
